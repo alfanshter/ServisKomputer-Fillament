@@ -3,14 +3,18 @@
 namespace App\Filament\Resources\Pesanans\Tables;
 
 use Filament\Actions\Action;
+use Filament\Actions\ActionGroup;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Actions\ViewAction;
 use Filament\Forms\Components\FileUpload;
+use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
+use Filament\Schemas\Components\Actions;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
@@ -45,16 +49,25 @@ class PesanansTable
             ])
 
             ->recordActions([
-                ViewAction::make(),
-                EditAction::make(),
-                DeleteAction::make(),
+                ActionGroup::make([
+                    ViewAction::make(),
+                    EditAction::make(),
+                    DeleteAction::make(),
+                ])
+                    ->icon('heroicon-o-cog') // opsional, bisa ganti ikon
+                    ->button() // tampil sebagai tombol
+                    ->label('Aksi') // teks tombol,
+                    ->color('warning')
+                    ->size('md') // biar sejajar
+                    ->outlined() // opsional: biar gaya sama tombol lain
+                    ->dropdownPlacement('bottom-end'), // posisi dropdown
 
                 Action::make('next_status')
                     ->label(fn($record) => match ($record->status) {
                         'belum mulai' => 'Mulai Analisa',
                         'analisa' => 'Analisa Selesai',
                         'selesai_analisa' => 'Konfirmasi',
-                        'konfirmasi' => 'Mulai Proses',
+                        'konfirmasi' => 'Konfirmasi',
                         'dalam proses' => 'Selesai',
                         'menunggu sparepart' => 'Lanjut Proses',
                         'selesai' => 'Tandai Dibayar',
@@ -66,6 +79,7 @@ class PesanansTable
                     })
                     ->color('primary')
                     ->icon('heroicon-o-arrow-right')
+                    ->size('md')
                     ->visible(fn($record) => in_array($record->status, [
                         'belum mulai',
                         'analisa',
@@ -79,6 +93,11 @@ class PesanansTable
                         'revisi',
                         'on hold'
                     ]))
+                    ->modalHeading(fn($record) => match ($record->status) {
+                        'konfirmasi' => 'Konfirmasi Tindakan Servis',
+                        default => null,
+                    })
+
                     ->form(fn($record) => match ($record->status) {
                         'belum mulai' => [
                             FileUpload::make('before_photos')
@@ -99,9 +118,11 @@ class PesanansTable
                                 ->label('Catatan Solusi')
                                 ->rows(4)
                                 ->required(),
-                            Textarea::make('sparepart')
-                                ->label('Sparepart yang perlu diganti')
-                                ->rows(2),
+
+                            TextInput::make('service_cost')
+                                ->label('Biaya Servis')
+                                ->numeric()
+                                ->nullable(),
                             FileUpload::make('progress_photos')
                                 ->label('Foto Analisa')
                                 ->image()
@@ -111,6 +132,70 @@ class PesanansTable
                                 ->maxFiles(10)
                                 ->required(),
 
+
+                        ],
+                        'selesai_analisa' => [
+                            Textarea::make('template')
+                                ->label('Template Chat')
+                                ->rows(10)
+                                ->default(function ($record) {
+                                    $nama = $record->user->name ?? 'Pelanggan';
+
+                                    return <<<TEXT
+Halo Kak {$nama} 👋
+
+Tim teknisi kami sudah melakukan pengecekan pada laptop Kakak.
+
+Ditemukan bahwa penyebab masalah berasal dari *SSD yang sudah tidak terbaca dengan baik*, sehingga perlu dilakukan *penggantian SSD baru*.
+
+Estimasi biaya perbaikan:
+💻 Ganti SSD: *Rp350.000*
+
+Apabila Kakak setuju, kami akan segera melanjutkan proses penggantian.
+
+Mohon konfirmasinya ya Kak 🙏
+
+Terima kasih,
+*PWS Computer Service Center*
+TEXT;
+                                }),
+
+
+                            Actions::make([
+                                Action::make('send_whatsapp')
+                                    ->label('Kirim ke WhatsApp')
+                                    ->icon('heroicon-o-chat-bubble-bottom-center-text')
+                                    ->color('success')
+                                    ->color('success')
+                                    ->url(function ($record, $get) {
+                                        $phone = preg_replace('/^0/', '62', $record->user->phone ?? '');
+                                        $message = urlencode($get('template'));
+                                        return "https://wa.me/{$phone}?text={$message}";
+                                    })
+                                    ->openUrlInNewTab() // 💥 ini yang bikin buka di tab baru
+                            ])
+
+                        ],
+
+                        // status konfirmasi → tampilkan pilihan aksi
+                        'konfirmasi' => [
+                            Placeholder::make('info')
+                                ->content('Pilih tindakan untuk servis ini:'),
+                            Actions::make([
+                                Action::make('batal')
+                                    ->label('Batalkan Servis')
+                                    ->color('danger')
+                                    ->requiresConfirmation()
+                                    ->action(function ($record) {
+                                        $record->update(['status' => 'batal']);
+                                    }),
+                                Action::make('lanjut')
+                                    ->label('Lanjut Proses')
+                                    ->color('success')
+                                    ->action(function ($record) {
+                                        $record->update(['status' => 'dalam proses']);
+                                    }),
+                            ])->fullWidth(),
                         ],
                         default => [],
                     })
@@ -159,10 +244,11 @@ class PesanansTable
                                 'status' => $nextStatus,
                                 'solution' => $data['solution'] ?? null,
                                 'analisa' => $data['analisa'] ?? null,
+                                'service_cost' => $data['service_cost'] ?? null,
                             ]);
 
-                              // Simpan foto ke tabel PesananOrderPhoto
-                              foreach ($data['progress_photos'] as $path) {
+                            // Simpan foto ke tabel PesananOrderPhoto
+                            foreach ($data['progress_photos'] as $path) {
                                 $record->photos()->create([
                                     'type' => 'progress',
                                     'path' => $path,
