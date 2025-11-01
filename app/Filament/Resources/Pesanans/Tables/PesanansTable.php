@@ -62,6 +62,32 @@ class PesanansTable
                     ->outlined() // opsional: biar gaya sama tombol lain
                     ->dropdownPlacement('bottom-end'), // posisi dropdown
 
+                ActionGroup::make([
+                    Action::make('tanda_terima')
+                        ->label('Tanda Terima')
+                        ->icon('heroicon-o-printer')
+                        ->url(fn($record) => route('print.tanda-terima', $record->id))
+                        ->openUrlInNewTab(), // biar langsung download / buka tab baru
+
+                    Action::make('invoice')
+                        ->label('Invoice')
+                        ->icon('heroicon-o-document')
+                        // ->url(fn($record) => route('print.invoice', $record))
+                        ->openUrlInNewTab(),
+
+                    Action::make('laporan')
+                        ->label('Laporan')
+                        ->icon('heroicon-o-document-text')
+                        // ->url(fn($record) => route('print.laporan', $record))
+                        ->openUrlInNewTab(),
+                ])
+                    ->label('Print')
+                    ->icon('heroicon-o-printer')
+                    ->button()
+                    ->color('success')
+                    ->outlined()
+                    ->dropdownPlacement('bottom-end'),
+
                 Action::make('next_status')
                     ->label(fn($record) => match ($record->status) {
                         'belum mulai' => 'Mulai Analisa',
