@@ -67,7 +67,7 @@ class PesanansTable
                         'belum mulai' => 'Mulai Analisa',
                         'analisa' => 'Analisa Selesai',
                         'selesai_analisa' => 'Konfirmasi',
-                        'konfirmasi' => 'Konfirmasi',
+                        'konfirmasi' => 'Next Step',
                         'dalam proses' => 'Selesai',
                         'menunggu sparepart' => 'Lanjut Proses',
                         'selesai' => 'Tandai Dibayar',
@@ -177,6 +177,48 @@ TEXT;
 
                         ],
 
+                        'selesai' => [
+                            Textarea::make('template')
+                                ->label('Template Chat')
+                                ->rows(10)
+                                ->default(function ($record) {
+                                    $nama = $record->user->name ?? 'Pelanggan';
+
+                                    return <<<TEXT
+                        Halo Kak {$nama} 👋
+
+                        Terima kasih telah mempercayakan servis perangkat Kakak di *PWS Computer Service Center*.
+
+                        Pekerjaan perbaikan sudah selesai dan perangkat telah diserahkan kembali kepada Kakak ✅
+
+                        Semoga perangkatnya dapat kembali digunakan dengan baik dan lancar.
+                        Jika di kemudian hari ada kendala atau membutuhkan bantuan lainnya, silakan hubungi kami kapan saja. Kami siap membantu 😊
+
+                        Terima kasih atas kepercayaannya 🙏
+                        Sampai jumpa di layanan servis berikutnya!
+
+                        Salam,
+                        *PWS Computer Service Center*
+                        TEXT;
+                                }),
+
+
+
+                            Actions::make([
+                                Action::make('send_whatsapp')
+                                    ->label('Kirim ke WhatsApp')
+                                    ->icon('heroicon-o-chat-bubble-bottom-center-text')
+                                    ->color('success')
+                                    ->color('success')
+                                    ->url(function ($record, $get) {
+                                        $phone = preg_replace('/^0/', '62', $record->user->phone ?? '');
+                                        $message = urlencode($get('template'));
+                                        return "https://wa.me/{$phone}?text={$message}";
+                                    })
+                                    ->openUrlInNewTab() // 💥 ini yang bikin buka di tab baru
+                            ])
+                        ],
+
                         // status konfirmasi → tampilkan pilihan aksi
                         'konfirmasi' => [
                             Placeholder::make('info')
@@ -196,6 +238,60 @@ TEXT;
                                         $record->update(['status' => 'dalam proses']);
                                     }),
                             ])->fullWidth(),
+                        ],
+                        'dalam proses' => [
+                            Textarea::make('analisa')
+                                ->label('Catatan hasil Pekerjaan')
+                                ->rows(4)
+                                ->required(),
+                            FileUpload::make('after')
+                                ->label('Foto Hasil')
+                                ->image()
+                                ->multiple()
+                                ->reorderable()
+                                ->directory('after')
+                                ->maxFiles(10)
+                                ->required(),
+
+                            Textarea::make('template')
+                                ->label('Template Chat')
+                                ->rows(10)
+                                ->default(function ($record) {
+                                    $nama = $record->user->name ?? 'Pelanggan';
+                                    $biaya = number_format($record->service_cost ?? 0, 0, ',', '.');
+
+                                    return <<<TEXT
+                            Halo Kak {$nama} 👋
+
+                            Kabar baik! 🙌
+                            Laptop Kakak sudah *selesai diservis* dan siap digunakan kembali ✅
+
+                            Total biaya servis: *Rp{$biaya}*
+
+                            Kakak bisa:
+                            📍 Ambil langsung di *PWS Computer Service Center*, atau
+                            🚚 Kami bantu *antar ke alamat Kakak* (akan dikenakan biaya ongkir sesuai jarak).
+
+                            Mohon konfirmasinya ya Kak, apakah ingin *diambil sendiri* atau *dikirim*? 🙏
+
+                            Terima kasih atas kepercayaannya 💙
+                            *PWS Computer Service Center*
+                            TEXT;
+                                }),
+                            Actions::make([
+                                Action::make('send_whatsapp')
+                                    ->label('Kirim ke WhatsApp')
+                                    ->icon('heroicon-o-chat-bubble-bottom-center-text')
+                                    ->color('success')
+                                    ->color('success')
+                                    ->url(function ($record, $get) {
+                                        $phone = preg_replace('/^0/', '62', $record->user->phone ?? '');
+                                        $message = urlencode($get('template'));
+                                        return "https://wa.me/{$phone}?text={$message}";
+                                    })
+                                    ->openUrlInNewTab() // 💥 ini yang bikin buka di tab baru
+                            ])
+
                         ],
                         default => [],
                     })
@@ -251,6 +347,19 @@ TEXT;
                             foreach ($data['progress_photos'] as $path) {
                                 $record->photos()->create([
                                     'type' => 'progress',
+                                    'path' => $path,
+                                ]);
+                            }
+                        } elseif ($record->status === 'dalam proses') {
+                            $record->update([
+                                'status' => $nextStatus,
+                                'notes' => $data['notes'] ?? null,
+                            ]);
+
+                            // Simpan foto ke tabel PesananOrderPhoto
+                            foreach ($data['after'] as $path) {
+                                $record->photos()->create([
+                                    'type' => 'after',
                                     'path' => $path,
                                 ]);
                             }
