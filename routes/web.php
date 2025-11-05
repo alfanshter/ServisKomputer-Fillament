@@ -9,3 +9,6 @@ Route::get('/', function () {
 
 Route::get('/print/tanda-terima/{id}', [PrintController::class, 'tandaTerima'])
     ->name('print.tanda-terima');
+
+Route::get('/print/invoice/{id}', [PrintController::class, 'invoice'])
+    ->name('print.invoice');

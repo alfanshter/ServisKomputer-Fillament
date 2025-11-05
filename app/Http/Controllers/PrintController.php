@@ -18,4 +18,14 @@ class PrintController extends Controller
         return $pdf->stream("tanda-terima-{$data->id}.pdf");
     }
 
+    public function invoice($id)
+    {
+        $data = Pesanan::with('user')->findOrFail($id);
+
+
+        $pdf = Pdf::loadView('print.invoice', compact('data'))
+        ->setPaper([0, 0, 595, 467], 'portrait'); // 210x165 mm
+        return $pdf->stream("invoice-{$data->id}.pdf");
+    }
+
 }
