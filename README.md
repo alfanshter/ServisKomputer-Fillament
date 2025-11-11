@@ -1,61 +1,104 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# 📋 Dokumentasi Modal Pemilihan Pelanggan Lama
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+## 🎯 Fitur Utama
 
-## About Laravel
+Modal pemilihan pelanggan telah diperbarui dengan tampilan yang lebih modern dan user-friendly.
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+### ✨ Improvement Visual
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+1. **Header dengan Gradient**
+   - Background gradient biru ke indigo
+   - Deskripsi singkat untuk memandu user
+   - Icon close button yang jelas
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+2. **Search Bar dengan Icon**
+   - Icon magnifying glass di sebelah kiri
+   - Focus state dengan border biru
+   - Ring effect untuk visual feedback
 
-## Learning Laravel
+3. **User List Card**
+   - Avatar dengan initial nama user
+   - Gradient background pada avatar
+   - Hover effect yang smooth
+   - Info: nama, email, dan nomor HP
+   - Arrow icon di sebelah kanan
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+4. **Empty State**
+   - Icon illustration yang jelas
+   - Pesan helpful
+   - Suggestion untuk user
 
-You may also try the [Laravel Bootcamp](https://bootcamp.laravel.com), where you will be guided through building a modern Laravel application from scratch.
+5. **Display Pelanggan Terpilih**
+   - Card dengan gradient background
+   - Avatar dengan gradient
+   - Badge "✓ Pelanggan Terpilih"
+   - Button hapus untuk reset pilihan
+   - Auto-update text button ("Pilih" → "Ganti")
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+### 🎨 Styling Features
 
-## Laravel Sponsors
+- **Animations**: Fade-in dengan zoom saat modal dibuka
+- **Custom Scrollbar**: Styling scrollbar yang match design
+- **Hover Effects**: Smooth transition pada semua interactive elements
+- **Colors**: Blue gradient color scheme (Blue 600 → Indigo 600)
+- **Spacing**: Consistent padding dan gap menggunakan Tailwind
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+### 📱 Responsive Design
 
-### Premium Partners
+- Modal menyesuaikan ukuran di device kecil
+- Padding ditambahkan untuk mobile
+- Backdrop blur untuk better focus
+- Scrollable list dengan max-height
 
-- **[Vehikl](https://vehikl.com)**
-- **[Tighten Co.](https://tighten.co)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Redberry](https://redberry.international/laravel-development)**
-- **[Active Logic](https://activelogic.com)**
+## 🔧 Komponen yang Diubah
 
-## Contributing
+### 1. `SelectUserModal.php` (Livewire Component)
+- Fitur search realtime
+- Pagination support
+- Event dispatching
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+### 2. `select-user-modal.blade.php` (Modal View)
+- Design modern dengan gradient header
+- Search input dengan icon
+- List dengan avatar dan hover effects
+- Custom scrollbar styling
+- Empty state illustration
 
-## Code of Conduct
+### 3. `select-user-with-modal.blade.php` (Filament Component)
+- Display card untuk selected user
+- Button untuk buka/ganti pelanggan
+- Auto-update UI based on selection
+- Delete button untuk clear selection
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+## 🚀 Cara Menggunakan
 
-## Security Vulnerabilities
+1. Buka halaman Create Pesanan
+2. Pilih "Pelanggan Lama" di dropdown "Jenis Pelanggan"
+3. Klik button "Pilih Pelanggan Lama"
+4. Cari user dengan nama, email, atau no. HP
+5. Klik user yang diinginkan
+6. Nama user akan muncul di display card
+7. Jika ingin mengganti, klik button lagi atau klik X untuk reset
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+## 🎨 Color Palette
 
-## License
+- **Primary**: Blue 600 (#2563eb)
+- **Secondary**: Indigo 600 (#4f46e5)
+- **Gradient**: Blue → Indigo
+- **Hover**: Brighter shades
+- **Success**: ✓ check mark
+- **Danger**: Red 500 untuk delete
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+## 📦 Dependencies
+
+- Livewire 3.x
+- Filament 3.x
+- Tailwind CSS
+- Alpine.js (built-in dengan Filament)
+
+## ⚙️ Notes
+
+- Search case-insensitive
+- Pagination 10 items per page
+- Event-driven architecture untuk maintainability
+- Fully compatible dengan Filament form validation
