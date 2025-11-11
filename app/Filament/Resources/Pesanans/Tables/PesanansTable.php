@@ -17,7 +17,10 @@ use Filament\Notifications\Notification;
 use Filament\Schemas\Components\Actions;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Filters\Filter;
+use Filament\Forms\Components\DatePicker;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 
 class PesanansTable
 {
@@ -29,7 +32,7 @@ class PesanansTable
                 TextColumn::make('device_type')->label('Perangkat'),
                 TextColumn::make('priority')->badge(),
                 TextColumn::make('status')->badge(),
-                TextColumn::make('start_date')->date(),
+                TextColumn::make('start_date')->date()->sortable(),
                 TextColumn::make('service_cost')->money('IDR', true)->label('Biaya'),
 
             ])
@@ -46,6 +49,34 @@ class PesanansTable
                         'selesai' => 'Selesai',
                         'dibayar' => 'Dibayar',
                     ]),
+                Filter::make('start_date')
+                    ->form([
+                        DatePicker::make('start_date_from')
+                            ->label('Tanggal Mulai (Dari)'),
+                        DatePicker::make('start_date_until')
+                            ->label('Tanggal Mulai (Hingga)'),
+                    ])
+                    ->query(function (Builder $query, array $data): Builder {
+                        return $query
+                            ->when(
+                                $data['start_date_from'],
+                                fn (Builder $query, $date): Builder => $query->whereDate('start_date', '>=', $date),
+                            )
+                            ->when(
+                                $data['start_date_until'],
+                                fn (Builder $query, $date): Builder => $query->whereDate('start_date', '<=', $date),
+                            );
+                    })
+                    ->indicateUsing(function (array $data): array {
+                        $indicators = [];
+                        if ($data['start_date_from'] ?? null) {
+                            $indicators['start_date_from'] = 'Dari ' . \Carbon\Carbon::parse($data['start_date_from'])->format('d/m/Y');
+                        }
+                        if ($data['start_date_until'] ?? null) {
+                            $indicators['start_date_until'] = 'Hingga ' . \Carbon\Carbon::parse($data['start_date_until'])->format('d/m/Y');
+                        }
+                        return $indicators;
+                    }),
             ])
 
             ->recordActions([
