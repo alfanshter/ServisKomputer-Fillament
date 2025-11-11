@@ -5,6 +5,7 @@ namespace App\Filament\Resources\Pesanans;
 use App\Filament\Resources\Pesanans\Pages\CreatePesanan;
 use App\Filament\Resources\Pesanans\Pages\EditPesanan;
 use App\Filament\Resources\Pesanans\Pages\ListPesanans;
+use App\Filament\Resources\Pesanans\Pages\SelectCustomer;
 use App\Filament\Resources\Pesanans\Pages\ViewPesanan;
 use App\Filament\Resources\Pesanans\Schemas\PesananForm;
 use App\Filament\Resources\Pesanans\Schemas\PesananInfolist;
@@ -50,6 +51,7 @@ class PesananResource extends Resource
     {
         return [
             'index' => ListPesanans::route('/'),
+            'select-customer' => \App\Filament\Resources\Pesanans\Pages\SelectCustomer::route('/select-customer'),
             'create' => CreatePesanan::route('/create'),
             'view' => ViewPesanan::route('/{record}'),
             'edit' => EditPesanan::route('/{record}/edit'),
