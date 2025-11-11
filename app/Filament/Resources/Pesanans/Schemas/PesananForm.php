@@ -2,14 +2,13 @@
 
 namespace App\Filament\Resources\Pesanans\Schemas;
 
-use App\Models\User;
+use App\Filament\Forms\Components\SelectUserWithModal;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Textarea;
-use Filament\Forms\Components\Html;
 use Filament\Schemas\Components\Group;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
@@ -27,26 +26,14 @@ class PesananForm
                         'existing' => 'Pelanggan Lama',
                         'new' => 'Pelanggan Baru',
                     ])
-                    ->placeholder('Pilih Jenis Pelanggan')
+                    ->default('default')
                     ->required()
                     ->live()
                     ->visibleOn('create'), // penting supaya real-time update UI
 
                 // 🟢 Kalau Pelanggan Lama
-                Select::make('user_id')
+                SelectUserWithModal::make('user_id')
                     ->label('Pelanggan Lama')
-                    ->options(function () {
-                        return User::where('role', 'user')
-                            ->get()
-                            ->mapWithKeys(function ($user) {
-                                $phone = $user->phone ?? 'No HP tidak tersedia';
-                                return [
-                                    $user->id => "{$user->name} ({$phone})"
-                                ];
-                            });
-                    })
-                    ->searchable()
-                    ->preload()
                     ->visible(fn(Get $get) => $get('customer_type') === 'existing')
                     ->required(fn(Get $get) => $get('customer_type') === 'existing'),
 
