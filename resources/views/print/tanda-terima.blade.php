@@ -43,7 +43,7 @@
             <td>{{ $data->device_type }}</td>
             <td>{{ $data->damage_description }}</td>
             <td>{{ $data->kelengkapan ?? '' }}</td>
-            <td>Rp {{ number_format($data->estimasi_biaya) }}</td>
+            <td>{{ $data->estimasi_biaya !== null ? 'Rp ' . number_format($data->estimasi_biaya) : '-' }}</td>
         </tr>
     </table>
 

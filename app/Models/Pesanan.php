@@ -17,6 +17,7 @@ class Pesanan extends Model
         'priority',
         'status',
         'start_date',
+        'kelengkapan',
         'end_date',
         'service_cost',
         'capital_cost',

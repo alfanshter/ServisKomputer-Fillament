@@ -74,6 +74,11 @@ class PesananForm
                     ->rows(3)
                     ->nullable(),
 
+                Textarea::make('kelengkapan')
+                    ->label('Kelengkapan')
+                    ->rows(3)
+                    ->nullable(),
+
                 DatePicker::make('start_date')
                     ->label('Tanggal Mulai')
                     ->required(),
