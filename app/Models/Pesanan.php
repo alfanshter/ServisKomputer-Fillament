@@ -41,5 +41,10 @@ class Pesanan extends Model
         return $this->hasMany(PesananOrderPhoto::class);
     }
 
+    public function statusHistories()
+    {
+        return $this->hasMany(PesananStatusHistory::class)->orderBy('created_at', 'desc');
+    }
+
 
 }

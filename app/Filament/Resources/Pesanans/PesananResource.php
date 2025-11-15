@@ -6,6 +6,7 @@ use App\Filament\Resources\Pesanans\Pages\CreatePesanan;
 use App\Filament\Resources\Pesanans\Pages\EditPesanan;
 use App\Filament\Resources\Pesanans\Pages\ListPesanans;
 use App\Filament\Resources\Pesanans\Pages\ViewPesanan;
+use App\Filament\Resources\Pesanans\RelationManagers\StatusHistoriesRelationManager;
 use App\Filament\Resources\Pesanans\Schemas\PesananForm;
 use App\Filament\Resources\Pesanans\Schemas\PesananInfolist;
 use App\Filament\Resources\Pesanans\Tables\PesanansTable;
@@ -42,7 +43,7 @@ class PesananResource extends Resource
     public static function getRelations(): array
     {
         return [
-            //
+            StatusHistoriesRelationManager::class,
         ];
     }
 

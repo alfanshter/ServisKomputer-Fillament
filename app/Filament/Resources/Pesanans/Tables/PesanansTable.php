@@ -27,6 +27,24 @@ class PesanansTable
     public static function configure(Table $table): Table
     {
         return $table
+            ->modifyQueryUsing(function (Builder $query) {
+                return $query->orderByRaw("
+                    CASE status
+                        WHEN 'belum mulai' THEN 1
+                        WHEN 'analisa' THEN 2
+                        WHEN 'selesai_analisa' THEN 3
+                        WHEN 'konfirmasi' THEN 4
+                        WHEN 'dalam proses' THEN 5
+                        WHEN 'menunggu sparepart' THEN 6
+                        WHEN 'on hold' THEN 7
+                        WHEN 'revisi' THEN 8
+                        WHEN 'selesai' THEN 9
+                        WHEN 'dibayar' THEN 10
+                        WHEN 'batal' THEN 11
+                        ELSE 12
+                    END
+                ")->orderBy('start_date', 'desc');
+            })
             ->columns([
                 TextColumn::make('user.name')->label('Customer')->searchable(),
                 TextColumn::make('device_type')->label('Perangkat'),
@@ -44,10 +62,17 @@ class PesanansTable
                     ]),
                 SelectFilter::make('status')
                     ->options([
+                        'belum mulai' => 'Belum Mulai',
+                        'analisa' => 'Analisa',
+                        'selesai_analisa' => 'Selesai Analisa',
                         'konfirmasi' => 'Konfirmasi',
-                        'dalam_proses' => 'Dalam Proses',
+                        'dalam proses' => 'Dalam Proses',
+                        'menunggu sparepart' => 'Menunggu Sparepart',
+                        'on hold' => 'On Hold',
+                        'revisi' => 'Revisi',
                         'selesai' => 'Selesai',
                         'dibayar' => 'Dibayar',
+                        'batal' => 'Batal',
                     ]),
                 Filter::make('start_date')
                     ->form([
@@ -383,6 +408,7 @@ TEXT;
 
                             // Update status dulu
                             $record->update(['status' => $nextStatus]);
+                            
                             // Simpan foto ke tabel PesananOrderPhoto
                             foreach ($data['before_photos'] as $path) {
                                 $record->photos()->create([
@@ -423,6 +449,14 @@ TEXT;
                         } else {
                             $record->update(['status' => $nextStatus]);
                         }
+
+                        // 🔥 SIMPAN HISTORY PERUBAHAN STATUS
+                        $record->statusHistories()->create([
+                            'old_status' => $currentStatus,
+                            'new_status' => $nextStatus,
+                            'changed_by' => auth()->id(),
+                            'notes' => $data['analisa'] ?? $data['notes'] ?? null,
+                        ]);
 
                         Notification::make()
                             ->title("Status diperbarui menjadi: {$nextStatus}")
