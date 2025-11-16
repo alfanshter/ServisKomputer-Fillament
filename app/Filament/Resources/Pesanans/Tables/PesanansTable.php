@@ -55,7 +55,22 @@ class PesanansTable
                 TextColumn::make('user.name')->label('Customer')->searchable(),
                 TextColumn::make('device_type')->label('Perangkat'),
                 TextColumn::make('priority')->badge(),
-                TextColumn::make('status')->badge(),
+                TextColumn::make('status')
+                    ->badge()
+                    ->color(fn (string $state): string => match ($state) {
+                        'belum mulai' => 'gray',
+                        'analisa' => 'info',
+                        'selesai_analisa' => 'primary',
+                        'konfirmasi' => 'warning',
+                        'dalam proses' => 'purple',
+                        'menunggu sparepart' => 'orange',
+                        'on hold' => 'gray',
+                        'revisi' => 'warning',
+                        'selesai' => 'success',
+                        'dibayar' => 'emerald',
+                        'batal' => 'danger',
+                        default => 'gray',
+                    }),
                 TextColumn::make('start_date')->date()->sortable(),
                 TextColumn::make('total_cost')
                     ->money('IDR', true)

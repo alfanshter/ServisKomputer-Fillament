@@ -79,5 +79,37 @@ class EditPesanan extends EditRecord
                 ]);
             }
         }
+
+        // 🔥 HANDLE SPAREPART CHANGES
+        // Sparepart relationship akan otomatis di-sync oleh Filament
+        // Tapi kita perlu update stok manual
+
+        // Refresh untuk ambil data sparepart terbaru
+        $record->refresh();
+
+        // 🔥 HITUNG ULANG TOTAL COST setelah edit
+        $serviceCost = $record->service_cost ?? 0;
+        $sparepartCost = $record->spareparts->sum('pivot.subtotal') ?? 0;
+        $totalCost = $serviceCost + $sparepartCost;
+
+        // Update total_cost
+        $record->update(['total_cost' => $totalCost]);
+
+        // 🔥 Refresh record supaya data terbaru langsung muncul
+        $record->refresh();
+    }
+
+    /**
+     * Redirect setelah save agar data langsung terupdate
+     */
+    protected function getSavedNotificationTitle(): ?string
+    {
+        return 'Data pesanan berhasil diperbarui';
+    }
+
+    protected function getRedirectUrl(): string
+    {
+        // Redirect ke halaman edit yang sama agar data fresh
+        return $this->getResource()::getUrl('edit', ['record' => $this->record]);
     }
 }

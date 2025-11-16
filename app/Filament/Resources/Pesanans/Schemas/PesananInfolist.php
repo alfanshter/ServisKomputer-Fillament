@@ -62,11 +62,6 @@ class PesananInfolist
                     ->size('lg')
                     ->color('success'),
 
-                TextEntry::make('capital_cost')
-                    ->numeric()
-                    ->placeholder('-')
-                    ->money('IDR', true)
-                    ->label('Modal'),
                 TextEntry::make('notes')
                     ->placeholder('-')
                     ->columnSpanFull(),
@@ -118,50 +113,41 @@ class PesananInfolist
                     ->placeholder('-'),
 
                 // 🟡 Foto Sebelum
-                RepeatableEntry::make('before_photos')
+                ImageEntry::make('before_photos')
                     ->label('Foto Sebelum')
                     ->getStateUsing(
                         fn($record) =>
                         $record->photos
                             ->where('type', 'before')
-                            ->map(fn($p) => ['path' => $p->path])
-                            ->values()
+                            ->pluck('path')
                             ->toArray()
                     )
-                    ->schema([
-                        ImageEntry::make('path')->label('')->size(150),
-                    ])
+                    ->size(200)
                     ->columnSpanFull(),
 
-                    RepeatableEntry::make('foto-progress')
+                ImageEntry::make('foto-progress')
                     ->label('Foto Progress')
                     ->getStateUsing(
                         fn($record) =>
                         $record->photos
                             ->where('type', 'progress')
-                            ->map(fn($p) => ['path' => $p->path])
-                            ->values()
+                            ->pluck('path')
                             ->toArray()
                     )
-                    ->schema([
-                        ImageEntry::make('path')->label('')->size(150),
-                    ])
+                    ->size(200)
                     ->columnSpanFull(),
 
                 // 🟢 Foto Sesudah
-                RepeatableEntry::make('after_photos')
+                ImageEntry::make('after_photos')
                     ->label('Foto Sesudah')
                     ->getStateUsing(
                         fn($record) =>
                         $record->photos
                             ->where('type', 'after')
-                            ->map(fn($p) => ['path' => $p->path])
-                            ->values()
+                            ->pluck('path')
                             ->toArray()
                     )
-                    ->schema([
-                        ImageEntry::make('path')->label('')->size(150),
-                    ])
+                    ->size(200)
                     ->columnSpanFull(),
             ]);
     }

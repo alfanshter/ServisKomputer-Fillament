@@ -67,7 +67,7 @@ class UpdateTotalCostPesanan extends Command
             // Update total_cost
             $pesanan->update(['total_cost' => $totalCost]);
             $updated++;
-            
+
             $bar->advance();
         }
 
@@ -78,7 +78,7 @@ class UpdateTotalCostPesanan extends Command
         if ($skipped > 0) {
             $this->warn("⚠️  {$skipped} pesanan diskip (total biaya = 0)");
         }
-        
+
         $this->newLine();
         $this->info('🎉 Proses selesai!');
 
