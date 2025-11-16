@@ -375,6 +375,22 @@ class PesanansTable
                         ],
 
                         'selesai' => [
+                            Select::make('metode_pembayaran')
+                                ->label('Metode Pembayaran')
+                                ->options([
+                                    'cash' => 'Cash/Tunai',
+                                    'paylater' => 'Paylater',
+                                    'visa' => 'Visa',
+                                    'mastercard' => 'Mastercard',
+                                    'tokped visa' => 'Tokopedia Visa',
+                                    'gopay later' => 'GoPay Later',
+                                    'seabank' => 'SeaBank',
+                                    'BCA' => 'BCA',
+                                    'Mandiri' => 'Mandiri',
+                                ])
+                                ->required()
+                                ->default('cash'),
+
                             Textarea::make('template')
                                 ->label('Template Chat')
                                 ->rows(10)
@@ -483,10 +499,11 @@ class PesanansTable
                             ->columnSpanFull(),
                         ],
                         'dalam proses' => [
-                            Textarea::make('analisa')
-                                ->label('Catatan hasil Pekerjaan')
+                            Textarea::make('notes')
+                                ->label('Catatan Hasil Pekerjaan')
                                 ->rows(4)
                                 ->required(),
+
                             FileUpload::make('after')
                                 ->label('Foto Hasil')
                                 ->image()
@@ -497,44 +514,44 @@ class PesanansTable
                                 ->required(),
 
                             Textarea::make('template')
-                                ->label('Template Chat')
-                                ->rows(10)
+                                ->label('Template Chat WhatsApp')
+                                ->rows(15)
+                                ->helperText('Template sudah otomatis terisi. Anda bisa mengedit sebelum mengirim.')
                                 ->default(function ($record) {
                                     $nama = $record->user->name ?? 'Pelanggan';
-                                    $biaya = number_format($record->service_cost ?? 0, 0, ',', '.');
+                                    $device = $record->device_type ?? 'Perangkat';
 
-                                    return <<<TEXT
-                            Halo Kak {$nama} 👋
+                                    // Format total biaya
+                                    $totalBiaya = $record->total_cost ?? 0;
+                                    $totalBiayaFormat = 'Rp' . number_format($totalBiaya, 0, ',', '.');
 
-                            Kabar baik! 🙌
-                            Laptop Kakak sudah *selesai diservis* dan siap digunakan kembali ✅
+                                    $message = "Halo Kak {$nama} 👋\n\n";
+                                    $message .= "Kabar baik! 🎉\n\n";
+                                    $message .= "*{$device}* Kakak sudah *selesai diservis* dan siap digunakan kembali ✅\n\n";
+                                    $message .= "💰 *Total Biaya Servis: {$totalBiayaFormat}*\n\n";
+                                    $message .= "Kakak bisa:\n";
+                                    $message .= "📍 Ambil langsung di *PWS Computer Service Center*, atau\n";
+                                    $message .= "🚚 Kami bantu *antar ke alamat Kakak* (biaya ongkir sesuai jarak)\n\n";
+                                    $message .= "Mohon konfirmasinya ya Kak, apakah ingin *diambil sendiri* atau *dikirim*? 🙏\n\n";
+                                    $message .= "Terima kasih atas kepercayaannya 💙\n";
+                                    $message .= "*PWS Computer Service Center*";
 
-                            Total biaya servis: *Rp{$biaya}*
+                                    return $message;
+                                })
+                                ->columnSpanFull(),
 
-                            Kakak bisa:
-                            📍 Ambil langsung di *PWS Computer Service Center*, atau
-                            🚚 Kami bantu *antar ke alamat Kakak* (akan dikenakan biaya ongkir sesuai jarak).
-
-                            Mohon konfirmasinya ya Kak, apakah ingin *diambil sendiri* atau *dikirim*? 🙏
-
-                            Terima kasih atas kepercayaannya 💙
-                            *PWS Computer Service Center*
-                            TEXT;
-                                }),
                             Actions::make([
                                 Action::make('send_whatsapp')
                                     ->label('Kirim ke WhatsApp')
                                     ->icon('heroicon-o-chat-bubble-bottom-center-text')
-                                    ->color('success')
                                     ->color('success')
                                     ->url(function ($record, $get) {
                                         $phone = preg_replace('/^0/', '62', $record->user->phone ?? '');
                                         $message = urlencode($get('template'));
                                         return "https://wa.me/{$phone}?text={$message}";
                                     })
-                                    ->openUrlInNewTab() // 💥 ini yang bikin buka di tab baru
+                                    ->openUrlInNewTab()
                             ])
-
                         ],
                         default => [],
                     })
@@ -662,6 +679,39 @@ class PesanansTable
                                     'path' => $path,
                                 ]);
                             }
+                        } elseif ($record->status === 'selesai') {
+                            // Update status ke dibayar
+                            $record->update(['status' => $nextStatus]);
+
+                            // 🔥 Hitung total biaya (untuk data lama yang total_cost masih NULL/0)
+                            $totalBiaya = $record->total_cost;
+
+                            // Jika total_cost kosong, hitung manual
+                            if (!$totalBiaya || $totalBiaya == 0) {
+                                $serviceCost = $record->service_cost ?? 0;
+                                $sparepartCost = $record->spareparts->sum('pivot.subtotal') ?? 0;
+                                $totalBiaya = $serviceCost + $sparepartCost;
+
+                                // Update total_cost di pesanan untuk data consistency
+                                $record->update(['total_cost' => $totalBiaya]);
+                            }
+
+                            // 🔥 AUTO CREATE TRANSACTION - PEMASUKAN
+                            \App\Models\Transaction::create([
+                                'tanggal' => now(),
+                                'tipe' => 'pemasukan',
+                                'kategori' => 'pemasukan', // sesuai ENUM di database
+                                'deskripsi' => "Pembayaran servis {$record->device_type} - {$record->user->name}",
+                                'nominal' => $totalBiaya,
+                                'metode_pembayaran' => $data['metode_pembayaran'] ?? 'cash',
+                                'referensi' => $record->id,
+                            ]);
+
+                            Notification::make()
+                                ->title('Transaksi berhasil dicatat!')
+                                ->body("Pembayaran Rp" . number_format($totalBiaya, 0, ',', '.') . " telah masuk ke catatan keuangan.")
+                                ->success()
+                                ->send();
                         } else {
                             $record->update(['status' => $nextStatus]);
                         }
