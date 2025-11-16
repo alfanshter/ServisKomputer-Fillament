@@ -29,4 +29,11 @@ class Sparepart extends Model
     {
         return $this->quantity <= $this->min_stock;
     }
+
+    public function pesanans()
+    {
+        return $this->belongsToMany(Pesanan::class, 'pesanan_sparepart')
+            ->withPivot('quantity', 'price', 'subtotal')
+            ->withTimestamps();
+    }
 }

@@ -13,6 +13,9 @@ use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Repeater;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Grid;
 use Filament\Notifications\Notification;
 use Filament\Schemas\Components\Actions;
 use Filament\Tables\Columns\TextColumn;
@@ -21,6 +24,7 @@ use Filament\Tables\Filters\Filter;
 use Filament\Forms\Components\DatePicker;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\Auth;
 
 class PesanansTable
 {
@@ -28,7 +32,9 @@ class PesanansTable
     {
         return $table
             ->modifyQueryUsing(function (Builder $query) {
-                return $query->orderByRaw("
+                return $query
+                    ->with(['user', 'spareparts']) // Eager load relasi
+                    ->orderByRaw("
                     CASE status
                         WHEN 'belum mulai' THEN 1
                         WHEN 'analisa' THEN 2
@@ -51,7 +57,11 @@ class PesanansTable
                 TextColumn::make('priority')->badge(),
                 TextColumn::make('status')->badge(),
                 TextColumn::make('start_date')->date()->sortable(),
-                TextColumn::make('service_cost')->money('IDR', true)->label('Biaya'),
+                TextColumn::make('total_cost')
+                    ->money('IDR', true)
+                    ->label('Total Biaya')
+                    ->placeholder('-')
+                    ->sortable(),
 
             ])
             ->filters([
@@ -128,7 +138,7 @@ class PesanansTable
                     Action::make('invoice')
                         ->label('Invoice')
                         ->icon('heroicon-o-document')
-                        // ->url(fn($record) => route('print.invoice', $record))
+                        ->url(fn($record) => route('print.invoice', $record->id))
                         ->openUrlInNewTab(),
 
                     Action::make('laporan')
@@ -179,6 +189,9 @@ class PesanansTable
                         'konfirmasi' => 'Konfirmasi Tindakan Servis',
                         default => null,
                     })
+                    ->modalSubmitAction(fn($record) => $record->status === 'konfirmasi' ? false : null)
+                    ->modalCancelActionLabel('Tutup')
+                    ->modalWidth(fn($record) => $record->status === 'konfirmasi' ? 'md' : '2xl')
 
                     ->form(fn($record) => match ($record->status) {
                         'belum mulai' => [
@@ -204,7 +217,77 @@ class PesanansTable
                             TextInput::make('service_cost')
                                 ->label('Biaya Servis')
                                 ->numeric()
+                                ->prefix('Rp')
                                 ->nullable(),
+
+                            Repeater::make('spareparts')
+                                ->label('Sparepart yang Digunakan')
+                                ->schema([
+                                    Select::make('sparepart_id')
+                                        ->label('Sparepart')
+                                        ->options(function () {
+                                            return \App\Models\Sparepart::query()
+                                                ->where('quantity', '>', 0)
+                                                ->get()
+                                                ->mapWithKeys(function ($sparepart) {
+                                                    return [
+                                                        $sparepart->id => "{$sparepart->name} - Stok: {$sparepart->quantity} - Rp" . number_format($sparepart->price, 0, ',', '.')
+                                                    ];
+                                                });
+                                        })
+                                        ->searchable()
+                                        ->required()
+                                        ->reactive()
+                                        ->afterStateUpdated(function ($state, callable $set) {
+                                            if ($state) {
+                                                $sparepart = \App\Models\Sparepart::find($state);
+                                                if ($sparepart) {
+                                                    $set('price', $sparepart->price);
+                                                    $set('max_quantity', $sparepart->quantity);
+                                                }
+                                            }
+                                        })
+                                        ->columnSpan(2),
+
+                                    TextInput::make('quantity')
+                                        ->label('Jumlah')
+                                        ->numeric()
+                                        ->default(1)
+                                        ->minValue(1)
+                                        ->required()
+                                        ->reactive()
+                                        ->afterStateUpdated(function ($state, callable $get, callable $set) {
+                                            $price = $get('price') ?? 0;
+                                            $set('subtotal', $state * $price);
+                                        })
+                                        ->columnSpan(1),
+
+                                    TextInput::make('price')
+                                        ->label('Harga Satuan')
+                                        ->numeric()
+                                        ->prefix('Rp')
+                                        ->required()
+                                        ->reactive()
+                                        ->afterStateUpdated(function ($state, callable $get, callable $set) {
+                                            $quantity = $get('quantity') ?? 1;
+                                            $set('subtotal', $state * $quantity);
+                                        })
+                                        ->columnSpan(1),
+
+                                    TextInput::make('subtotal')
+                                        ->label('Subtotal')
+                                        ->numeric()
+                                        ->prefix('Rp')
+                                        ->disabled()
+                                        ->dehydrated()
+                                        ->columnSpan(1),
+                                ])
+                                ->columns(5)
+                                ->columnSpanFull()
+                                ->addActionLabel('Tambah Sparepart')
+                                ->collapsible()
+                                ->defaultItems(0),
+
                             FileUpload::make('progress_photos')
                                 ->label('Foto Analisa')
                                 ->image()
@@ -218,29 +301,62 @@ class PesanansTable
                         ],
                         'selesai_analisa' => [
                             Textarea::make('template')
-                                ->label('Template Chat')
-                                ->rows(10)
+                                ->label('Template Chat WhatsApp')
+                                ->rows(18)
+                                ->helperText('Template sudah otomatis terisi. Anda bisa mengedit sebelum mengirim.')
                                 ->default(function ($record) {
                                     $nama = $record->user->name ?? 'Pelanggan';
+                                    $device = $record->device_type ?? 'Perangkat';
+                                    $analisa = $record->analisa ?? 'Hasil analisa sedang diproses';
+                                    $solusi = $record->solution ?? 'Solusi sedang diproses';
 
-                                    return <<<TEXT
-Halo Kak {$nama} 👋
+                                    // Format biaya
+                                    $biayaServis = $record->service_cost ?? 0;
+                                    $biayaServisFormat = 'Rp' . number_format($biayaServis, 0, ',', '.');
 
-Tim teknisi kami sudah melakukan pengecekan pada laptop Kakak.
+                                    // Build message
+                                    $message = "Halo Kak {$nama} 👋\n\n";
+                                    $message .= "Tim teknisi kami sudah melakukan pengecekan pada *{$device}* Kakak.\n\n";
+                                    $message .= "📋 *HASIL ANALISA:*\n";
+                                    $message .= "{$analisa}\n\n";
+                                    $message .= "🔧 *SOLUSI:*\n";
+                                    $message .= "{$solusi}\n\n";
+                                    $message .= "💰 *RINCIAN BIAYA:*\n";
 
-Ditemukan bahwa penyebab masalah berasal dari *SSD yang sudah tidak terbaca dengan baik*, sehingga perlu dilakukan *penggantian SSD baru*.
+                                    // Biaya jasa servis
+                                    if ($biayaServis > 0) {
+                                        $message .= "• Jasa Servis: *{$biayaServisFormat}*\n";
+                                    }
 
-Estimasi biaya perbaikan:
-💻 Ganti SSD: *Rp350.000*
+                                    // Sparepart yang digunakan
+                                    $totalSparepart = 0;
+                                    if ($record->spareparts && $record->spareparts->count() > 0) {
+                                        foreach ($record->spareparts as $sparepart) {
+                                            $qty = $sparepart->pivot->quantity;
+                                            $price = $sparepart->pivot->price;
+                                            $subtotal = $sparepart->pivot->subtotal;
+                                            $totalSparepart += $subtotal;
 
-Apabila Kakak setuju, kami akan segera melanjutkan proses penggantian.
+                                            $priceFormat = 'Rp' . number_format($price, 0, ',', '.');
+                                            $subtotalFormat = 'Rp' . number_format($subtotal, 0, ',', '.');
 
-Mohon konfirmasinya ya Kak 🙏
+                                            $message .= "• {$sparepart->name} ({$qty}x {$priceFormat}): *{$subtotalFormat}*\n";
+                                        }
+                                    }
 
-Terima kasih,
-*PWS Computer Service Center*
-TEXT;
-                                }),
+                                    // Total keseluruhan
+                                    $totalBiaya = $record->total_cost ?? ($biayaServis + $totalSparepart);
+                                    $totalBiayaFormat = 'Rp' . number_format($totalBiaya, 0, ',', '.');
+
+                                    $message .= "\n*TOTAL BIAYA: {$totalBiayaFormat}*\n\n";
+                                    $message .= "Apabila Kakak setuju, kami akan segera melanjutkan proses perbaikan.\n\n";
+                                    $message .= "Mohon konfirmasinya ya Kak 🙏\n\n";
+                                    $message .= "Terima kasih,\n";
+                                    $message .= "*PWS Computer Service Center*";
+
+                                    return $message;
+                                })
+                                ->columnSpanFull(),
 
 
                             Actions::make([
@@ -248,13 +364,12 @@ TEXT;
                                     ->label('Kirim ke WhatsApp')
                                     ->icon('heroicon-o-chat-bubble-bottom-center-text')
                                     ->color('success')
-                                    ->color('success')
                                     ->url(function ($record, $get) {
                                         $phone = preg_replace('/^0/', '62', $record->user->phone ?? '');
                                         $message = urlencode($get('template'));
                                         return "https://wa.me/{$phone}?text={$message}";
                                     })
-                                    ->openUrlInNewTab() // 💥 ini yang bikin buka di tab baru
+                                    ->openUrlInNewTab()
                             ])
 
                         ],
@@ -304,22 +419,68 @@ TEXT;
                         // status konfirmasi → tampilkan pilihan aksi
                         'konfirmasi' => [
                             Placeholder::make('info')
-                                ->content('Pilih tindakan untuk servis ini:'),
+                                ->content('Customer sudah menerima informasi biaya dan solusi perbaikan. Silakan pilih tindakan selanjutnya:')
+                                ->columnSpanFull(),
+
                             Actions::make([
                                 Action::make('batal')
-                                    ->label('Batalkan Servis')
+                                    ->label('❌ Batalkan Servis')
                                     ->color('danger')
+                                    ->icon('heroicon-o-x-circle')
                                     ->requiresConfirmation()
-                                    ->action(function ($record) {
+                                    ->modalHeading('Batalkan Servis?')
+                                    ->modalDescription('Apakah Anda yakin ingin membatalkan servis ini? Customer menolak biaya atau perbaikan.')
+                                    ->modalSubmitActionLabel('Ya, Batalkan')
+                                    ->action(function ($record, $livewire) {
                                         $record->update(['status' => 'batal']);
-                                    }),
+
+                                        $record->statusHistories()->create([
+                                            'old_status' => 'konfirmasi',
+                                            'new_status' => 'batal',
+                                            'changed_by' => Auth::id(),
+                                            'notes' => 'Customer membatalkan servis',
+                                        ]);
+
+                                        Notification::make()
+                                            ->title('Servis dibatalkan')
+                                            ->success()
+                                            ->send();
+
+                                        // Dispatch event untuk close modal dan refresh
+                                        $livewire->dispatch('close-modal', id: 'database-next_status-action');
+                                    })
+                                    ->closeModalByClickingAway(false),
+
                                 Action::make('lanjut')
-                                    ->label('Lanjut Proses')
+                                    ->label('✅ Lanjut Proses')
                                     ->color('success')
-                                    ->action(function ($record) {
+                                    ->icon('heroicon-o-check-circle')
+                                    ->requiresConfirmation()
+                                    ->modalHeading('Lanjut Proses Perbaikan?')
+                                    ->modalDescription('Customer menyetujui biaya dan perbaikan. Lanjutkan ke proses pengerjaan?')
+                                    ->modalSubmitActionLabel('Ya, Lanjutkan')
+                                    ->action(function ($record, $livewire) {
                                         $record->update(['status' => 'dalam proses']);
-                                    }),
-                            ])->fullWidth(),
+
+                                        $record->statusHistories()->create([
+                                            'old_status' => 'konfirmasi',
+                                            'new_status' => 'dalam proses',
+                                            'changed_by' => Auth::id(),
+                                            'notes' => 'Customer menyetujui perbaikan',
+                                        ]);
+
+                                        Notification::make()
+                                            ->title('Status diubah ke "Dalam Proses"')
+                                            ->success()
+                                            ->send();
+
+                                        // Dispatch event untuk close modal dan refresh
+                                        $livewire->dispatch('close-modal', id: 'database-next_status-action');
+                                    })
+                                    ->closeModalByClickingAway(false),
+                            ])
+                            ->fullWidth()
+                            ->columnSpanFull(),
                         ],
                         'dalam proses' => [
                             Textarea::make('analisa')
@@ -379,6 +540,12 @@ TEXT;
                     })
                     ->action(function ($record, $data, $action) {
 
+                        // Skip action handler untuk status konfirmasi
+                        // karena sudah ditangani oleh button action sendiri
+                        if ($record->status === 'konfirmasi') {
+                            return;
+                        }
+
                         $currentStatus = $record->status;
 
                         $nextStatus = match ($record->status) {
@@ -396,6 +563,23 @@ TEXT;
                             default => $currentStatus,
                         };
 
+                        // 🔥 VALIDASI STOK SPAREPART DI AWAL SEBELUM UPDATE APAPUN
+                        if ($record->status === 'analisa' && !empty($data['spareparts'])) {
+                            foreach ($data['spareparts'] as $sparepartData) {
+                                $sparepart = \App\Models\Sparepart::find($sparepartData['sparepart_id']);
+
+                                if ($sparepart && $sparepart->quantity < $sparepartData['quantity']) {
+                                    Notification::make()
+                                        ->title("Stok {$sparepart->name} tidak mencukupi!")
+                                        ->body("Stok tersedia: {$sparepart->quantity}, diminta: {$sparepartData['quantity']}")
+                                        ->danger()
+                                        ->send();
+
+                                    // Halt action - tetap di modal, tidak simpan apapun
+                                    $action->halt();
+                                }
+                            }
+                        }
 
                         if ($record->status === 'belum mulai') {
                             if (empty($data['before_photos']) || count($data['before_photos']) === 0) {
@@ -408,7 +592,7 @@ TEXT;
 
                             // Update status dulu
                             $record->update(['status' => $nextStatus]);
-                            
+
                             // Simpan foto ke tabel PesananOrderPhoto
                             foreach ($data['before_photos'] as $path) {
                                 $record->photos()->create([
@@ -419,11 +603,24 @@ TEXT;
                         }
                         // Simpan hasil analisa jika di tahap analisa
                         elseif ($record->status === 'analisa') {
+                            // Hitung total biaya sparepart
+                            $totalSparepartCost = 0;
+                            if (!empty($data['spareparts'])) {
+                                foreach ($data['spareparts'] as $sparepartData) {
+                                    $totalSparepartCost += $sparepartData['subtotal'];
+                                }
+                            }
+
+                            // Hitung total cost (service + sparepart)
+                            $serviceCost = $data['service_cost'] ?? 0;
+                            $totalCost = $serviceCost + $totalSparepartCost;
+
                             $record->update([
                                 'status' => $nextStatus,
                                 'solution' => $data['solution'] ?? null,
                                 'analisa' => $data['analisa'] ?? null,
-                                'service_cost' => $data['service_cost'] ?? null,
+                                'service_cost' => $serviceCost,
+                                'total_cost' => $totalCost,
                             ]);
 
                             // Simpan foto ke tabel PesananOrderPhoto
@@ -432,6 +629,25 @@ TEXT;
                                     'type' => 'progress',
                                     'path' => $path,
                                 ]);
+                            }
+
+                            // 🔥 Simpan sparepart jika ada (validasi sudah dilakukan di awal)
+                            if (!empty($data['spareparts'])) {
+                                foreach ($data['spareparts'] as $sparepartData) {
+                                    $sparepart = \App\Models\Sparepart::find($sparepartData['sparepart_id']);
+
+                                    if ($sparepart) {
+                                        // Simpan ke pivot table
+                                        $record->spareparts()->attach($sparepartData['sparepart_id'], [
+                                            'quantity' => $sparepartData['quantity'],
+                                            'price' => $sparepartData['price'],
+                                            'subtotal' => $sparepartData['subtotal'],
+                                        ]);
+
+                                        // Kurangi stok sparepart
+                                        $sparepart->decrement('quantity', $sparepartData['quantity']);
+                                    }
+                                }
                             }
                         } elseif ($record->status === 'dalam proses') {
                             $record->update([
@@ -454,7 +670,7 @@ TEXT;
                         $record->statusHistories()->create([
                             'old_status' => $currentStatus,
                             'new_status' => $nextStatus,
-                            'changed_by' => auth()->id(),
+                            'changed_by' => Auth::id(),
                             'notes' => $data['analisa'] ?? $data['notes'] ?? null,
                         ]);
 

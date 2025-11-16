@@ -23,27 +23,27 @@ class StatusHistoriesRelationManager extends RelationManager
                     ->dateTime('d M Y, H:i')
                     ->sortable()
                     ->size('sm'),
-                
+
                 TextColumn::make('old_status')
                     ->label('Status Lama')
                     ->badge()
                     ->formatStateUsing(fn ($state) => $state ? $this->getStatusLabel($state) : '-')
                     ->color(fn ($state) => $this->getStatusColor($state))
                     ->size('sm'),
-                
+
                 TextColumn::make('new_status')
                     ->label('Status Baru')
                     ->badge()
                     ->formatStateUsing(fn ($state) => $this->getStatusLabel($state))
                     ->color(fn ($state) => $this->getStatusColor($state))
                     ->size('sm'),
-                
+
                 TextColumn::make('user.name')
                     ->label('Diubah Oleh')
                     ->default('-')
                     ->icon('heroicon-o-user')
                     ->size('sm'),
-                
+
                 TextColumn::make('notes')
                     ->label('Catatan')
                     ->limit(50)

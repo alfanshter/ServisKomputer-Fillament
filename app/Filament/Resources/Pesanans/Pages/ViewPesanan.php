@@ -13,6 +13,14 @@ class ViewPesanan extends ViewRecord
 {
     protected static string $resource = PesananResource::class;
 
+    protected function mutateFormDataBeforeFill(array $data): array
+    {
+        // Eager load relasi spareparts untuk performa lebih baik
+        $this->record->load('spareparts');
+
+        return $data;
+    }
+
     protected function getHeaderActions(): array
     {
         return [

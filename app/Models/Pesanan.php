@@ -20,6 +20,7 @@ class Pesanan extends Model
         'kelengkapan',
         'end_date',
         'service_cost',
+        'total_cost',
         'capital_cost',
         'notes',
     ];
@@ -46,5 +47,11 @@ class Pesanan extends Model
         return $this->hasMany(PesananStatusHistory::class)->orderBy('created_at', 'desc');
     }
 
+    public function spareparts()
+    {
+        return $this->belongsToMany(Sparepart::class, 'pesanan_sparepart')
+            ->withPivot('quantity', 'price', 'subtotal')
+            ->withTimestamps();
+    }
 
 }
