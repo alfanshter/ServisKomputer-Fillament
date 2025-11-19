@@ -37,7 +37,8 @@ class SparepartResource extends Resource
     public static function getRelations(): array
     {
         return [
-            //
+            \App\Filament\Resources\Spareparts\RelationManagers\PurchaseOrdersRelationManager::class,
+            \App\Filament\Resources\Spareparts\RelationManagers\PurchasesRelationManager::class,
         ];
     }
 
