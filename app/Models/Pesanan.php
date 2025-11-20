@@ -20,6 +20,7 @@ class Pesanan extends Model
         'kelengkapan',
         'end_date',
         'service_cost',
+        'discount',
         'total_cost',
         'capital_cost',
         'notes',

@@ -280,6 +280,14 @@ class PesanansTable
                                 ->prefix('Rp')
                                 ->nullable(),
 
+                            TextInput::make('discount')
+                                ->label('Diskon')
+                                ->numeric()
+                                ->prefix('Rp')
+                                ->default(0)
+                                ->helperText('Masukkan nilai diskon jika ada')
+                                ->nullable(),
+
                             Repeater::make('spareparts')
                                 ->label('Sparepart yang Digunakan')
                                 ->schema([
@@ -362,7 +370,7 @@ class PesanansTable
                         'selesai_analisa' => [
                             Textarea::make('template')
                                 ->label('Template Chat WhatsApp')
-                                ->rows(18)
+                                ->rows(22)
                                 ->helperText('Template sudah otomatis terisi. Anda bisa mengedit sebelum mengirim.')
                                 ->default(function ($record) {
                                     $nama = $record->user->name ?? 'Pelanggan';
@@ -385,7 +393,7 @@ class PesanansTable
 
                                     // Biaya jasa servis
                                     if ($biayaServis > 0) {
-                                        $message .= "• Jasa Servis: *{$biayaServisFormat}*\n";
+                                        $message .= "• Jasa Servis: {$biayaServisFormat}\n";
                                     }
 
                                     // Sparepart yang digunakan
@@ -400,12 +408,24 @@ class PesanansTable
                                             $priceFormat = 'Rp' . number_format($price, 0, ',', '.');
                                             $subtotalFormat = 'Rp' . number_format($subtotal, 0, ',', '.');
 
-                                            $message .= "• {$sparepart->name} ({$qty}x {$priceFormat}): *{$subtotalFormat}*\n";
+                                            $message .= "• {$sparepart->name} ({$qty}x {$priceFormat}): {$subtotalFormat}\n";
                                         }
                                     }
 
+                                    // Subtotal
+                                    $subtotalAll = $biayaServis + $totalSparepart;
+                                    $subtotalAllFormat = 'Rp' . number_format($subtotalAll, 0, ',', '.');
+                                    $message .= "\n_Subtotal: {$subtotalAllFormat}_\n";
+
+                                    // Diskon (jika ada)
+                                    $diskon = $record->discount ?? 0;
+                                    if ($diskon > 0) {
+                                        $diskonFormat = 'Rp' . number_format($diskon, 0, ',', '.');
+                                        $message .= "_Diskon: -{$diskonFormat}_\n";
+                                    }
+
                                     // Total keseluruhan
-                                    $totalBiaya = $record->total_cost ?? ($biayaServis + $totalSparepart);
+                                    $totalBiaya = $record->total_cost ?? ($subtotalAll - $diskon);
                                     $totalBiayaFormat = 'Rp' . number_format($totalBiaya, 0, ',', '.');
 
                                     $message .= "\n*TOTAL BIAYA: {$totalBiayaFormat}*\n\n";
@@ -617,14 +637,14 @@ class PesanansTable
                                     $message .= "\n_Subtotal: {$subtotalAllFormat}_\n";
 
                                     // Diskon (jika ada)
-                                    $diskon = 0; // Nanti bisa ditambahkan field diskon di database
+                                    $diskon = $record->discount ?? 0;
                                     if ($diskon > 0) {
                                         $diskonFormat = 'Rp' . number_format($diskon, 0, ',', '.');
                                         $message .= "_Diskon: -{$diskonFormat}_\n";
                                     }
 
                                     // Total keseluruhan
-                                    $totalBiaya = $record->total_cost ?? $subtotalAll;
+                                    $totalBiaya = $record->total_cost ?? ($subtotalAll - $diskon);
                                     $totalBiayaFormat = 'Rp' . number_format($totalBiaya, 0, ',', '.');
 
                                     $message .= "\n*TOTAL BIAYA: {$totalBiayaFormat}*\n\n";
@@ -729,15 +749,18 @@ class PesanansTable
                                 }
                             }
 
-                            // Hitung total cost (service + sparepart)
+                            // Hitung total cost (service + sparepart - diskon)
                             $serviceCost = $data['service_cost'] ?? 0;
-                            $totalCost = $serviceCost + $totalSparepartCost;
+                            $discount = $data['discount'] ?? 0;
+                            $subtotal = $serviceCost + $totalSparepartCost;
+                            $totalCost = $subtotal - $discount;
 
                             $record->update([
                                 'status' => $nextStatus,
                                 'solution' => $data['solution'] ?? null,
                                 'analisa' => $data['analisa'] ?? null,
                                 'service_cost' => $serviceCost,
+                                'discount' => $discount,
                                 'total_cost' => $totalCost,
                             ]);
 

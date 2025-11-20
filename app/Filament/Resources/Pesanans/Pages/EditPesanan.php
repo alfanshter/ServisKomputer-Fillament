@@ -168,10 +168,12 @@ class EditPesanan extends EditRecord
         // Refresh untuk ambil data sparepart terbaru
         $record->refresh();
 
-        // 🔥 HITUNG ULANG TOTAL COST setelah edit
+        // 🔥 HITUNG ULANG TOTAL COST setelah edit (dengan diskon)
         $serviceCost = $record->service_cost ?? 0;
         $sparepartCost = $record->spareparts->sum('pivot.subtotal') ?? 0;
-        $totalCost = $serviceCost + $sparepartCost;
+        $discount = $record->discount ?? 0;
+        $subtotal = $serviceCost + $sparepartCost;
+        $totalCost = $subtotal - $discount;
 
         // Update total_cost
         $record->update(['total_cost' => $totalCost]);

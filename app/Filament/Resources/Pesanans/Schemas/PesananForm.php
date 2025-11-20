@@ -135,7 +135,16 @@ class PesananForm
                 TextInput::make('service_cost')
                     ->label('Biaya Servis')
                     ->numeric()
+                    ->prefix('Rp')
                     ->nullable(),
+
+                TextInput::make('discount')
+                    ->label('Diskon')
+                    ->visibleOn('edit')
+                    ->numeric()
+                    ->prefix('Rp')
+                    ->nullable()
+                    ->helperText('Masukkan nilai diskon jika ada'),
 
                 // 🔧 Edit Sparepart - hanya visible jika status sudah selesai_analisa atau lebih
                 Repeater::make('spareparts_edit')
