@@ -38,6 +38,18 @@ class EditPesanan extends EditRecord
             ->pluck('path')
             ->toArray();
 
+        // 🔥 Load sparepart data untuk edit
+        if ($record->spareparts && $record->spareparts->count() > 0) {
+            $data['spareparts_edit'] = $record->spareparts->map(function ($sparepart) {
+                return [
+                    'sparepart_id' => $sparepart->id,
+                    'quantity' => $sparepart->pivot->quantity,
+                    'price' => $sparepart->pivot->price,
+                    'subtotal' => $sparepart->pivot->subtotal,
+                ];
+            })->toArray();
+        }
+
         return $data;
     }
 
@@ -81,8 +93,77 @@ class EditPesanan extends EditRecord
         }
 
         // 🔥 HANDLE SPAREPART CHANGES
-        // Sparepart relationship akan otomatis di-sync oleh Filament
-        // Tapi kita perlu update stok manual
+        // Ambil data sparepart lama sebelum update
+        $oldSpareparts = $record->spareparts()->get()->keyBy('id');
+
+        // Proses sparepart baru dari form
+        if (!empty($this->data['spareparts_edit'])) {
+            $newSparepartIds = [];
+
+            foreach ($this->data['spareparts_edit'] as $sparepartData) {
+                $sparepartId = $sparepartData['sparepart_id'];
+                $newQuantity = $sparepartData['quantity'];
+                $newPrice = $sparepartData['price'];
+                $newSubtotal = $sparepartData['subtotal'] ?? ($newQuantity * $newPrice);
+
+                $newSparepartIds[] = $sparepartId;
+
+                // Cek apakah sparepart sudah ada sebelumnya
+                if ($oldSpareparts->has($sparepartId)) {
+                    $oldQuantity = $oldSpareparts[$sparepartId]->pivot->quantity;
+
+                    // Jika quantity berubah, update stok
+                    if ($oldQuantity != $newQuantity) {
+                        $diff = $newQuantity - $oldQuantity;
+                        $sparepart = \App\Models\Sparepart::find($sparepartId);
+
+                        if ($sparepart) {
+                            // Kurangi stok jika quantity bertambah, tambah stok jika berkurang
+                            $sparepart->decrement('quantity', $diff);
+                        }
+                    }
+
+                    // Update pivot data
+                    $record->spareparts()->updateExistingPivot($sparepartId, [
+                        'quantity' => $newQuantity,
+                        'price' => $newPrice,
+                        'subtotal' => $newSubtotal,
+                    ]);
+                } else {
+                    // Sparepart baru ditambahkan
+                    $sparepart = \App\Models\Sparepart::find($sparepartId);
+
+                    if ($sparepart) {
+                        // Attach sparepart baru dan kurangi stok
+                        $record->spareparts()->attach($sparepartId, [
+                            'quantity' => $newQuantity,
+                            'price' => $newPrice,
+                            'subtotal' => $newSubtotal,
+                        ]);
+
+                        $sparepart->decrement('quantity', $newQuantity);
+                    }
+                }
+            }
+
+            // Hapus sparepart yang dihapus dari form dan kembalikan stoknya
+            foreach ($oldSpareparts as $oldSparepart) {
+                if (!in_array($oldSparepart->id, $newSparepartIds)) {
+                    // Kembalikan stok
+                    $oldSparepart->increment('quantity', $oldSparepart->pivot->quantity);
+
+                    // Detach dari pesanan
+                    $record->spareparts()->detach($oldSparepart->id);
+                }
+            }
+        } else {
+            // Jika semua sparepart dihapus, kembalikan semua stok
+            foreach ($oldSpareparts as $oldSparepart) {
+                $oldSparepart->increment('quantity', $oldSparepart->pivot->quantity);
+            }
+
+            $record->spareparts()->detach();
+        }
 
         // Refresh untuk ambil data sparepart terbaru
         $record->refresh();

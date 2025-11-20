@@ -138,16 +138,15 @@ class PesananForm
                     ->nullable(),
 
                 // 🔧 Edit Sparepart - hanya visible jika status sudah selesai_analisa atau lebih
-                Repeater::make('spareparts')
+                Repeater::make('spareparts_edit')
                     ->label('Sparepart yang Digunakan')
                     ->visibleOn('edit')
                     ->visible(fn($record) => $record && in_array($record->status, [
                         'selesai_analisa', 'konfirmasi', 'dalam proses',
                         'menunggu sparepart', 'on hold', 'revisi', 'selesai', 'dibayar'
                     ]))
-                    ->relationship('spareparts')
                     ->schema([
-                        Select::make('id')
+                        Select::make('sparepart_id')
                             ->label('Sparepart')
                             ->options(function () {
                                 return \App\Models\Sparepart::query()
@@ -161,44 +160,52 @@ class PesananForm
                             ->searchable()
                             ->required()
                             ->reactive()
-                            ->afterStateUpdated(function ($state, callable $set) {
+                            ->afterStateUpdated(function ($state, callable $set, callable $get) {
                                 if ($state) {
                                     $sparepart = \App\Models\Sparepart::find($state);
                                     if ($sparepart) {
-                                        $set('pivot.price', $sparepart->price);
-                                        $quantity = 1;
-                                        $set('pivot.subtotal', $quantity * $sparepart->price);
+                                        // Hanya set jika belum ada nilai (item baru)
+                                        if (!$get('quantity')) {
+                                            $set('quantity', 1);
+                                        }
+                                        if (!$get('price')) {
+                                            $set('price', $sparepart->price);
+                                        }
+
+                                        // Hitung subtotal
+                                        $quantity = $get('quantity') ?? 1;
+                                        $price = $get('price') ?? $sparepart->price;
+                                        $set('subtotal', $quantity * $price);
                                     }
                                 }
                             })
                             ->columnSpan(2),
 
-                        TextInput::make('pivot.quantity')
+                        TextInput::make('quantity')
                             ->label('Jumlah')
                             ->numeric()
-                            ->default(1)
                             ->minValue(1)
                             ->required()
                             ->reactive()
                             ->afterStateUpdated(function ($state, callable $get, callable $set) {
-                                $price = $get('pivot.price') ?? 0;
-                                $set('pivot.subtotal', $state * $price);
+                                $price = $get('price') ?? 0;
+                                $set('subtotal', $state * $price);
                             })
                             ->columnSpan(1),
 
-                        TextInput::make('pivot.price')
+                        TextInput::make('price')
                             ->label('Harga Satuan')
                             ->numeric()
                             ->prefix('Rp')
                             ->required()
                             ->reactive()
                             ->afterStateUpdated(function ($state, callable $get, callable $set) {
-                                $quantity = $get('pivot.quantity') ?? 1;
-                                $set('pivot.subtotal', $state * $quantity);
+                                $quantity = $get('quantity') ?? 1;
+                                $set('subtotal', $state * $quantity);
                             })
                             ->columnSpan(1),
 
-                        TextInput::make('pivot.subtotal')
+                        TextInput::make('subtotal')
                             ->label('Subtotal')
                             ->numeric()
                             ->prefix('Rp')

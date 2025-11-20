@@ -575,20 +575,59 @@ class PesanansTable
 
                             Textarea::make('template')
                                 ->label('Template Chat WhatsApp')
-                                ->rows(15)
+                                ->rows(20)
                                 ->helperText('Template sudah otomatis terisi. Anda bisa mengedit sebelum mengirim.')
                                 ->default(function ($record) {
                                     $nama = $record->user->name ?? 'Pelanggan';
                                     $device = $record->device_type ?? 'Perangkat';
 
-                                    // Format total biaya
-                                    $totalBiaya = $record->total_cost ?? 0;
-                                    $totalBiayaFormat = 'Rp' . number_format($totalBiaya, 0, ',', '.');
+                                    // Format biaya service
+                                    $biayaServis = $record->service_cost ?? 0;
+                                    $biayaServisFormat = 'Rp' . number_format($biayaServis, 0, ',', '.');
 
                                     $message = "Halo Kak {$nama} 👋\n\n";
                                     $message .= "Kabar baik! 🎉\n\n";
                                     $message .= "*{$device}* Kakak sudah *selesai diservis* dan siap digunakan kembali ✅\n\n";
-                                    $message .= "💰 *Total Biaya Servis: {$totalBiayaFormat}*\n\n";
+                                    $message .= "💰 *RINCIAN BIAYA:*\n";
+
+                                    // Biaya jasa servis
+                                    if ($biayaServis > 0) {
+                                        $message .= "• Jasa Servis: {$biayaServisFormat}\n";
+                                    }
+
+                                    // Sparepart yang digunakan
+                                    $totalSparepart = 0;
+                                    if ($record->spareparts && $record->spareparts->count() > 0) {
+                                        foreach ($record->spareparts as $sparepart) {
+                                            $qty = $sparepart->pivot->quantity;
+                                            $price = $sparepart->pivot->price;
+                                            $subtotal = $sparepart->pivot->subtotal;
+                                            $totalSparepart += $subtotal;
+
+                                            $priceFormat = 'Rp' . number_format($price, 0, ',', '.');
+                                            $subtotalFormat = 'Rp' . number_format($subtotal, 0, ',', '.');
+
+                                            $message .= "• {$sparepart->name} ({$qty}x {$priceFormat}): {$subtotalFormat}\n";
+                                        }
+                                    }
+
+                                    // Subtotal
+                                    $subtotalAll = $biayaServis + $totalSparepart;
+                                    $subtotalAllFormat = 'Rp' . number_format($subtotalAll, 0, ',', '.');
+                                    $message .= "\n_Subtotal: {$subtotalAllFormat}_\n";
+
+                                    // Diskon (jika ada)
+                                    $diskon = 0; // Nanti bisa ditambahkan field diskon di database
+                                    if ($diskon > 0) {
+                                        $diskonFormat = 'Rp' . number_format($diskon, 0, ',', '.');
+                                        $message .= "_Diskon: -{$diskonFormat}_\n";
+                                    }
+
+                                    // Total keseluruhan
+                                    $totalBiaya = $record->total_cost ?? $subtotalAll;
+                                    $totalBiayaFormat = 'Rp' . number_format($totalBiaya, 0, ',', '.');
+
+                                    $message .= "\n*TOTAL BIAYA: {$totalBiayaFormat}*\n\n";
                                     $message .= "Kakak bisa:\n";
                                     $message .= "📍 Ambil langsung di *PWS Computer Service Center*, atau\n";
                                     $message .= "🚚 Kami bantu *antar ke alamat Kakak* (biaya ongkir sesuai jarak)\n\n";
@@ -684,7 +723,9 @@ class PesanansTable
                             $totalSparepartCost = 0;
                             if (!empty($data['spareparts'])) {
                                 foreach ($data['spareparts'] as $sparepartData) {
-                                    $totalSparepartCost += $sparepartData['subtotal'];
+                                    // Hitung subtotal jika null (fallback)
+                                    $subtotal = $sparepartData['subtotal'] ?? ($sparepartData['quantity'] * $sparepartData['price']);
+                                    $totalSparepartCost += $subtotal;
                                 }
                             }
 
@@ -714,11 +755,14 @@ class PesanansTable
                                     $sparepart = \App\Models\Sparepart::find($sparepartData['sparepart_id']);
 
                                     if ($sparepart) {
+                                        // Hitung subtotal jika null (fallback)
+                                        $subtotal = $sparepartData['subtotal'] ?? ($sparepartData['quantity'] * $sparepartData['price']);
+
                                         // Simpan ke pivot table
                                         $record->spareparts()->attach($sparepartData['sparepart_id'], [
                                             'quantity' => $sparepartData['quantity'],
                                             'price' => $sparepartData['price'],
-                                            'subtotal' => $sparepartData['subtotal'],
+                                            'subtotal' => $subtotal,
                                         ]);
 
                                         // Kurangi stok sparepart
