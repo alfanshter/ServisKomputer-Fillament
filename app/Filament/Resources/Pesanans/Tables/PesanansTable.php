@@ -169,6 +169,51 @@ class PesanansTable
                     ->outlined()
                     ->dropdownPlacement('bottom-end'),
 
+                Action::make('cancel')
+                    ->label('Cancel')
+                    ->color('danger')
+                    ->icon('heroicon-o-x-circle')
+                    ->size('md')
+                    ->visible(fn($record) => !in_array($record->status, ['batal', 'dibayar']))
+                    ->requiresConfirmation()
+                    ->modalHeading('Cancel Pesanan?')
+                    ->modalDescription('Apakah Anda yakin ingin cancel pesanan ini?')
+                    ->modalSubmitActionLabel('Ya, Cancel')
+                    ->form([
+                        Textarea::make('cancel_notes')
+                            ->label('Alasan Pembatalan')
+                            ->placeholder('Masukkan alasan pembatalan pesanan...')
+                            ->rows(3)
+                            ->required(),
+                    ])
+                    ->action(function ($record, $data) {
+                        $oldStatus = $record->status;
+
+                        // Jika ada sparepart yang sudah digunakan, kembalikan stoknya
+                        if ($record->spareparts && $record->spareparts->count() > 0) {
+                            foreach ($record->spareparts as $sparepart) {
+                                $qty = $sparepart->pivot->quantity;
+                                $sparepart->increment('quantity', $qty);
+                            }
+                        }
+
+                        $record->update(['status' => 'batal']);
+
+                        // Simpan history perubahan status
+                        $record->statusHistories()->create([
+                            'old_status' => $oldStatus,
+                            'new_status' => 'batal',
+                            'changed_by' => Auth::id(),
+                            'notes' => $data['cancel_notes'] ?? 'Pesanan dibatalkan',
+                        ]);
+
+                        Notification::make()
+                            ->title('Pesanan berhasil dibatalkan')
+                            ->body('Status diubah menjadi batal dan stok sparepart dikembalikan.')
+                            ->success()
+                            ->send();
+                    }),
+
                 Action::make('next_status')
                     ->label(fn($record) => match ($record->status) {
                         'belum mulai' => 'Mulai Analisa',
