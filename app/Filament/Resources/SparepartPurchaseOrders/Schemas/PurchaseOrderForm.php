@@ -76,6 +76,13 @@ class PurchaseOrderForm
                                         $set('sku', $sparepart->sku);
                                         $set('description', $sparepart->description);
                                         $set('margin_persen', $sparepart->margin_percent ?? 0);
+
+                                        // Auto-populate harga modal dari average_cost atau cost_price
+                                        $costPrice = $sparepart->average_cost ?? $sparepart->cost_price ?? 0;
+                                        $set('cost_price', $costPrice);
+
+                                        // Update calculations
+                                        self::updateCalculations($set, $get);
                                     }
                                 }
                             })
@@ -120,7 +127,12 @@ class PurchaseOrderForm
                             ->prefix('Rp')
                             ->minValue(0)
                             ->reactive()
-                            ->afterStateUpdated(fn (Set $set, Get $get) => self::updateCalculations($set, $get)),
+                            ->afterStateUpdated(fn (Set $set, Get $get) => self::updateCalculations($set, $get))
+                            ->helperText(fn (Get $get) =>
+                                !$get('is_new_sparepart') && $get('sparepart_id')
+                                    ? 'Harga modal terakhir dari sparepart. Bisa diedit jika harga berubah.'
+                                    : 'Harga beli per unit dari supplier'
+                            ),
 
                         TextInput::make('margin_persen')
                             ->label('Margin (%)')
@@ -148,7 +160,8 @@ class PurchaseOrderForm
                         TextInput::make('supplier_contact')
                             ->label('Kontak Supplier')
                             ->maxLength(255)
-                            ->tel(),
+                            ->placeholder('No. HP, link Shopee, Tokopedia, dll')
+                            ->helperText('Bisa nomor HP, link toko online, atau kontak lainnya'),
 
                         Select::make('payment_method')
                             ->label('Metode Pembayaran')

@@ -83,6 +83,7 @@ class SparepartPurchaseOrder extends Model
      * - Buat/update sparepart
      * - Tambah stok
      * - Buat record di sparepart_purchases
+     * - Update average_cost (rata-rata harga modal)
      * - Catat transaksi pengeluaran
      * - Update status PO
      */
@@ -109,7 +110,36 @@ class SparepartPurchaseOrder extends Model
             } else {
                 // Update sparepart yang sudah ada
                 $sparepart = $this->sparepart;
+
+                // Simpan quantity lama untuk kalkulasi rata-rata
+                $oldQuantity = $sparepart->quantity;
+                $oldAverageCost = $sparepart->average_cost ?? $sparepart->cost_price ?? 0;
+
+                // Update quantity (tambah stok)
                 $sparepart->quantity += $this->quantity;
+
+                // Hitung average_cost dengan weighted average
+                // Formula: ((qty_lama * harga_lama) + (qty_baru * harga_baru)) / (qty_lama + qty_baru)
+                if ($oldQuantity > 0) {
+                    $totalOldCost = $oldQuantity * $oldAverageCost;
+                    $totalNewCost = $this->quantity * $this->cost_price;
+                    $sparepart->average_cost = ($totalOldCost + $totalNewCost) / ($oldQuantity + $this->quantity);
+                } else {
+                    // Jika stok sebelumnya 0, langsung pakai harga baru
+                    $sparepart->average_cost = $this->cost_price;
+                }
+
+                // Update cost_price terakhir
+                $sparepart->cost_price = $this->cost_price;
+
+                // Update margin_percent jika ada
+                if ($this->margin_persen > 0) {
+                    $sparepart->margin_percent = $this->margin_persen;
+                }
+
+                // Update harga jual berdasarkan margin
+                $sparepart->price = $sparepart->average_cost + ($sparepart->average_cost * $sparepart->margin_percent / 100);
+
                 $sparepart->save();
             }
 
@@ -126,10 +156,7 @@ class SparepartPurchaseOrder extends Model
                 'harga_jual' => $this->cost_price + ($this->cost_price * $this->margin_persen / 100),
             ]);
 
-            // 3. Update average cost dan selling price
-            $sparepart->updatePricing();
-
-            // 4. Catat transaksi pengeluaran untuk pembelian sparepart
+            // 3. Catat transaksi pengeluaran untuk pembelian sparepart
             Transaction::create([
                 'tanggal' => $this->received_date ?? now(),
                 'tipe' => 'pengeluaran',
@@ -140,7 +167,7 @@ class SparepartPurchaseOrder extends Model
                 'referensi' => $this->po_number,
             ]);
 
-            // 5. Update status PO
+            // 4. Update status PO
             $this->status = 'received';
             if (!$this->received_date) {
                 $this->received_date = now();
