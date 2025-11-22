@@ -55,4 +55,27 @@ class Pesanan extends Model
             ->withTimestamps();
     }
 
+    public function services()
+    {
+        return $this->belongsToMany(Service::class, 'pesanan_service')
+            ->withPivot('quantity', 'price', 'subtotal')
+            ->withTimestamps();
+    }
+
+    public function purchaseOrders()
+    {
+        return $this->hasMany(SparepartPurchaseOrder::class);
+    }
+
+    public function purchaseOrderItems()
+    {
+        return $this->hasMany(PesananPurchaseOrderItem::class);
+    }
+
+    public function pendingPurchaseOrderItems()
+    {
+        return $this->hasMany(PesananPurchaseOrderItem::class)
+            ->where('status', 'pending');
+    }
+
 }

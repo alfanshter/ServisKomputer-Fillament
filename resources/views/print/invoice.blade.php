@@ -234,17 +234,17 @@
                 $totalBiaya = 0;
             @endphp
 
-            {{-- Jasa Servis --}}
-            @if($data->service_cost > 0)
+            {{-- Jasa Service dari Master Data --}}
+            @foreach($data->services as $service)
             <tr>
                 <td class="text-center">{{ $no++ }}</td>
-                <td><strong>Jasa Servis</strong><br><small style="color: #666;">{{ $data->device_type }}</small></td>
-                <td class="text-center">1</td>
-                <td class="text-right">Rp {{ number_format($data->service_cost, 0, ',', '.') }}</td>
-                <td class="text-right"><strong>Rp {{ number_format($data->service_cost, 0, ',', '.') }}</strong></td>
+                <td><strong>{{ $service->name }}</strong><br><small style="color: #666;">Jasa Service</small></td>
+                <td class="text-center">{{ $service->pivot->quantity }}</td>
+                <td class="text-right">Rp {{ number_format($service->pivot->price, 0, ',', '.') }}</td>
+                <td class="text-right"><strong>Rp {{ number_format($service->pivot->subtotal, 0, ',', '.') }}</strong></td>
             </tr>
-            @php $totalBiaya += $data->service_cost; @endphp
-            @endif
+            @php $totalBiaya += $service->pivot->subtotal; @endphp
+            @endforeach
 
             {{-- Sparepart --}}
             @foreach($data->spareparts as $sparepart)
@@ -258,9 +258,9 @@
             @php $totalBiaya += $sparepart->pivot->subtotal; @endphp
             @endforeach
 
-            {{-- Baris kosong jika kurang dari 5 item --}}
+            {{-- Baris kosong jika kurang dari 3 item --}}
             @php
-                $itemCount = ($data->service_cost > 0 ? 1 : 0) + $data->spareparts->count();
+                $itemCount = $data->services->count() + $data->spareparts->count();
                 $emptyRows = max(0, 3 - $itemCount);
             @endphp
             @for ($i = 0; $i < $emptyRows; $i++)
@@ -276,13 +276,15 @@
             <td width="70%" class="text-right"><strong>Subtotal:</strong></td>
             <td width="30%" class="text-right">Rp {{ number_format($totalBiaya, 0, ',', '.') }}</td>
         </tr>
+        @if($data->discount > 0)
         <tr class="summary-row">
             <td class="text-right">Diskon:</td>
-            <td class="text-right">Rp 0</td>
+            <td class="text-right">- Rp {{ number_format($data->discount, 0, ',', '.') }}</td>
         </tr>
+        @endif
         <tr class="summary-row total">
             <td class="text-right">TOTAL PEMBAYARAN:</td>
-            <td class="text-right">Rp {{ number_format($data->total_cost ?? $totalBiaya, 0, ',', '.') }}</td>
+            <td class="text-right">Rp {{ number_format($data->total_cost ?? ($totalBiaya - ($data->discount ?? 0)), 0, ',', '.') }}</td>
         </tr>
     </table>
 

@@ -169,7 +169,7 @@ class EditPesanan extends EditRecord
         $record->refresh();
 
         // 🔥 HITUNG ULANG TOTAL COST setelah edit (dengan diskon)
-        $serviceCost = $record->service_cost ?? 0;
+        $serviceCost = $record->services->sum('pivot.subtotal') ?? 0; // Dari master jasa, bukan service_cost lagi
         $sparepartCost = $record->spareparts->sum('pivot.subtotal') ?? 0;
         $discount = $record->discount ?? 0;
         $subtotal = $serviceCost + $sparepartCost;

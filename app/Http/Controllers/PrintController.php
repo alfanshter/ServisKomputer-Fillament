@@ -20,7 +20,7 @@ class PrintController extends Controller
 
     public function invoice($id)
     {
-        $data = Pesanan::with(['user', 'spareparts'])->findOrFail($id);
+        $data = Pesanan::with(['user', 'services', 'spareparts'])->findOrFail($id);
 
 
         $pdf = Pdf::loadView('print.invoice', compact('data'))

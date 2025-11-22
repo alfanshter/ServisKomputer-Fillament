@@ -129,14 +129,7 @@ class PesananForm
                     ->prefix('Rp')
                     ->disabled()
                     ->dehydrated(false)
-                    ->helperText('Total otomatis dihitung (Service + Sparepart)'),
-
-
-                TextInput::make('service_cost')
-                    ->label('Biaya Servis')
-                    ->numeric()
-                    ->prefix('Rp')
-                    ->nullable(),
+                    ->helperText('Total otomatis dihitung (Jasa + Sparepart - Diskon)'),
 
                 TextInput::make('discount')
                     ->label('Diskon')
