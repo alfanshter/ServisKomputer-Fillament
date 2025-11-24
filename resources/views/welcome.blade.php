@@ -5,22 +5,22 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
 
         <!-- SEO Meta Tags -->
-        <title>Servis Komputer Profesional - Perbaikan & Maintenance Komputer/Laptop Terpercaya</title>
-        <meta name="description" content="Layanan servis komputer dan laptop profesional. Perbaikan hardware, software, instalasi, upgrade, dan maintenance. Teknisi berpengalaman, harga terjangkau, garansi resmi.">
-        <meta name="keywords" content="servis komputer, perbaikan laptop, service komputer, teknisi komputer, instalasi windows, upgrade komputer, maintenance komputer, perbaikan hardware">
-        <meta name="author" content="Servis Komputer">
+        <title>PWS Comp Service Laptop dan Komputer Pasuruan - Servis Profesional Terpercaya</title>
+        <meta name="description" content="PWS Comp Service Laptop dan Komputer Pasuruan - Layanan servis komputer dan laptop profesional. Antar jemput area Pasuruan. Buka Senin-Sabtu 08:00-16:00. WA: +6282232469415">
+        <meta name="keywords" content="servis komputer pasuruan, perbaikan laptop pasuruan, service komputer pasuruan, teknisi komputer pasuruan, instalasi windows, upgrade komputer, pws comp, servis laptop pasuruan, antar jemput komputer pasuruan">
+        <meta name="author" content="PWS Comp Service">
         <meta name="robots" content="index, follow">
 
         <!-- Open Graph Meta Tags -->
-        <meta property="og:title" content="Servis Komputer Profesional - Solusi Terbaik untuk Komputer & Laptop Anda">
-        <meta property="og:description" content="Layanan servis komputer profesional dengan teknisi berpengalaman. Perbaikan cepat, harga terjangkau, dan garansi resmi.">
+        <meta property="og:title" content="PWS Comp Service Laptop dan Komputer Pasuruan">
+        <meta property="og:description" content="Layanan servis komputer profesional di Pasuruan. Antar jemput gratis area Pasuruan. Buka Senin-Sabtu 08:00-16:00. WhatsApp: +6282232469415">
         <meta property="og:type" content="website">
         <meta property="og:url" content="{{ url('/') }}">
 
         <!-- Twitter Card Meta Tags -->
         <meta name="twitter:card" content="summary_large_image">
-        <meta name="twitter:title" content="Servis Komputer Profesional">
-        <meta name="twitter:description" content="Layanan servis komputer dan laptop terpercaya dengan teknisi berpengalaman">
+        <meta name="twitter:title" content="PWS Comp Service Pasuruan">
+        <meta name="twitter:description" content="Layanan servis komputer dan laptop profesional di Pasuruan dengan antar jemput">
 
         <!-- Canonical URL -->
         <link rel="canonical" href="{{ url('/') }}">
@@ -437,6 +437,74 @@
                 .fade-in-up {
                     animation: fadeInUp 0.6s ease-out;
                 }
+
+                /* WhatsApp Floating Button */
+                .whatsapp-float {
+                    position: fixed;
+                    width: 60px;
+                    height: 60px;
+                    bottom: 30px;
+                    right: 30px;
+                    background-color: #25d366;
+                    color: #FFF;
+                    border-radius: 50px;
+                    text-align: center;
+                    font-size: 30px;
+                    box-shadow: 2px 2px 15px rgba(0, 0, 0, 0.3);
+                    z-index: 100;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    transition: all 0.3s ease;
+                    text-decoration: none;
+                }
+
+                .whatsapp-float:hover {
+                    background-color: #20ba5a;
+                    transform: scale(1.1);
+                    box-shadow: 2px 2px 20px rgba(37, 211, 102, 0.5);
+                }
+
+                .whatsapp-float svg {
+                    width: 32px;
+                    height: 32px;
+                    fill: white;
+                }
+
+                @keyframes pulse {
+                    0% {
+                        box-shadow: 0 0 0 0 rgba(37, 211, 102, 0.7);
+                    }
+                    70% {
+                        box-shadow: 0 0 0 15px rgba(37, 211, 102, 0);
+                    }
+                    100% {
+                        box-shadow: 0 0 0 0 rgba(37, 211, 102, 0);
+                    }
+                }
+
+                .whatsapp-float {
+                    animation: pulse 2s infinite;
+                }
+
+                .whatsapp-float:hover {
+                    animation: none;
+                }
+
+                @media (max-width: 768px) {
+                    .whatsapp-float {
+                        width: 50px;
+                        height: 50px;
+                        bottom: 20px;
+                        right: 20px;
+                        font-size: 25px;
+                    }
+
+                    .whatsapp-float svg {
+                        width: 28px;
+                        height: 28px;
+                    }
+                }
             </style>
         @endif
     </head>
@@ -451,7 +519,7 @@
                             <line x1="8" y1="21" x2="16" y2="21"/>
                             <line x1="12" y1="17" x2="12" y2="21"/>
                         </svg>
-                        Servis Komputer
+                        PWS Comp Service
                     </a>
                     <ul class="nav-links">
                         <li><a href="#home">Beranda</a></li>
@@ -475,10 +543,10 @@
             <div class="container">
                 <div class="hero-content fade-in-up">
                     <div class="hero-text">
-                        <h1>Solusi Terpercaya untuk Servis Komputer & Laptop Anda</h1>
-                        <p>Layanan profesional dengan teknisi berpengalaman, harga terjangkau, dan garansi resmi. Kami siap membantu mengatasi semua masalah komputer Anda.</p>
+                        <h1>PWS Comp Service Laptop dan Komputer Pasuruan</h1>
+                        <p>Layanan servis profesional dengan teknisi berpengalaman. Menerima jasa antar jemput area Pasuruan. Buka Senin-Sabtu 08:00-16:00. Untuk diluar jam operasional bisa chat WA untuk janjian.</p>
                         <div class="hero-buttons">
-                            <a href="#contact" class="btn-primary">Hubungi Kami</a>
+                            <a href="https://wa.me/6282232469415" target="_blank" class="btn-primary">Chat WhatsApp</a>
                             <a href="#services" class="btn-secondary">Lihat Layanan</a>
                         </div>
                     </div>
@@ -568,10 +636,40 @@
                         </div>
                     </div>
                     <div class="feature-item fade-in-up">
-                        <div class="feature-icon">🛡️</div>
+                        <div class="feature-icon">🚗</div>
                         <div class="feature-content">
-                            <h4>Garansi Resmi</h4>
-                            <p>Garansi perbaikan hingga 30 hari untuk memastikan kepuasan dan ketenangan Anda.</p>
+                            <h4>Layanan Antar Jemput</h4>
+                            <p>Gratis antar jemput area Pasuruan untuk kemudahan Anda. Tidak perlu repot bawa komputer sendiri.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Hours & Location Section -->
+        <section class="features" style="background: var(--light);">
+            <div class="container">
+                <div class="section-title fade-in-up">
+                    <h2>Jam Operasional & Lokasi</h2>
+                    <p>Kunjungi kami atau hubungi untuk konsultasi</p>
+                </div>
+                <div class="features-grid">
+                    <div class="feature-item fade-in-up">
+                        <div class="feature-icon">🕐</div>
+                        <div class="feature-content">
+                            <h4>Jam Buka</h4>
+                            <p><strong>Senin - Sabtu:</strong> 08:00 - 16:00 WIB<br>
+                            <strong>Minggu:</strong> Tutup<br>
+                            <em>*Diluar jam operasional bisa chat WA untuk janjian</em></p>
+                        </div>
+                    </div>
+                    <div class="feature-item fade-in-up">
+                        <div class="feature-icon">📍</div>
+                        <div class="feature-content">
+                            <h4>Lokasi Kami</h4>
+                            <p><strong>PWS Comp Service</strong><br>
+                            Jalan Raya Wonosari Kec. Gondangwetan, Kab. Pasuruan<br>
+                            <a href="https://www.google.com/maps/search/pws+comp+service+laptop+dan+komputer+pasuruan" target="_blank" style="color: var(--primary); text-decoration: underline;">Lihat di Google Maps</a></p>
                         </div>
                     </div>
                 </div>
@@ -582,16 +680,8 @@
         <section class="cta" id="contact">
             <div class="container">
                 <h2>Siap Untuk Memperbaiki Komputer Anda?</h2>
-                <p>Hubungi kami sekarang untuk konsultasi gratis dan dapatkan solusi terbaik untuk masalah komputer Anda</p>
-                @if (Route::has('login'))
-                    @auth
-                        <a href="{{ url('/dashboard') }}" class="btn-white">Buka Dashboard</a>
-                    @else
-                        <a href="{{ route('login') }}" class="btn-white">Mulai Sekarang</a>
-                    @endauth
-                @else
-                    <a href="#" class="btn-white">Hubungi Kami</a>
-                @endif
+                <p>Hubungi kami sekarang melalui WhatsApp untuk konsultasi gratis dan dapatkan solusi terbaik</p>
+                <a href="https://wa.me/6282232469415?text=Halo%20PWS%20Comp,%20saya%20ingin%20konsultasi%20tentang%20servis%20komputer" target="_blank" class="btn-white">Chat WhatsApp Sekarang</a>
             </div>
         </section>
 
@@ -600,8 +690,8 @@
             <div class="container">
                 <div class="footer-content">
                     <div class="footer-section">
-                        <h4>Servis Komputer</h4>
-                        <p>Layanan servis komputer dan laptop profesional terpercaya sejak 2015.</p>
+                        <h4>PWS Comp Service</h4>
+                        <p>Layanan servis komputer dan laptop profesional terpercaya di Pasuruan sejak 2015.</p>
                     </div>
                     <div class="footer-section">
                         <h4>Layanan</h4>
@@ -610,36 +700,49 @@
                             <li><a href="#services">Instalasi Software</a></li>
                             <li><a href="#services">Upgrade Komputer</a></li>
                             <li><a href="#services">Recovery Data</a></li>
+                            <li><a href="#services">Antar Jemput Area Pasuruan</a></li>
                         </ul>
                     </div>
                     <div class="footer-section">
-                        <h4>Perusahaan</h4>
+                        <h4>Jam Operasional</h4>
                         <ul>
-                            <li><a href="#features">Tentang Kami</a></li>
-                            <li><a href="#features">Keunggulan</a></li>
-                            <li><a href="#contact">Kontak</a></li>
-                            @if (Route::has('login'))
-                                <li><a href="{{ route('login') }}">Login</a></li>
-                            @endif
+                            <li>Senin - Sabtu</li>
+                            <li>08:00 - 16:00 WIB</li>
+                            <li>Minggu: Tutup</li>
+                            <li style="margin-top: 10px;"><em>Diluar jam buka bisa janjian via WA</em></li>
                         </ul>
                     </div>
                     <div class="footer-section">
-                        <h4>Kontak</h4>
+                        <h4>Hubungi Kami</h4>
                         <ul>
-                            <li>Email: info@serviskomputer.com</li>
-                            <li>Telp: (021) 1234-5678</li>
-                            <li>WhatsApp: 0812-3456-7890</li>
+                            <li>📧 Email: <a href="mailto:pwscomp@gmail.com">pwscomp@gmail.com</a></li>
+                            <li>📱 WhatsApp: <a href="https://wa.me/6282232469415" target="_blank">+62 822-3246-9415</a></li>
+                            <li>📍 Lokasi: Jalan Raya Wonosari Kec. Gondangwetan, Kab. Pasuruan</li>
+                            <li><a href="https://www.google.com/maps/search/pws+comp+service+laptop+dan+komputer+pasuruan" target="_blank">Lihat di Maps</a></li>
                         </ul>
                     </div>
                 </div>
                 <div class="footer-bottom">
-                    <p>&copy; {{ date('Y') }} Servis Komputer. All rights reserved.</p>
+                    <p>&copy; {{ date('Y') }} PWS Comp Service. All rights reserved.</p>
                 </div>
             </div>
         </footer>
 
+        <!-- WhatsApp Floating Button -->
+        <a href="https://wa.me/6282232469415?text=Halo%20PWS%20Comp,%20saya%20ingin%20konsultasi%20tentang%20servis%20komputer"
+           class="whatsapp-float"
+           target="_blank"
+           aria-label="Chat WhatsApp">
+            <svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+                <path d="M16 0c-8.837 0-16 7.163-16 16 0 2.825 0.737 5.607 2.137 8.048l-2.137 7.952 7.933-2.127c2.42 1.37 5.173 2.127 8.067 2.127 8.837 0 16-7.163 16-16s-7.163-16-16-16zM16 29.467c-2.482 0-4.908-0.646-7.07-1.87l-0.507-0.292-5.305 1.422 1.427-5.313-0.321-0.532c-1.333-2.215-2.037-4.763-2.037-7.349 0-7.384 6.003-13.387 13.387-13.387s13.387 6.003 13.387 13.387-6.003 13.387-13.387 13.387zM21.776 18.967c-0.374-0.188-2.214-1.095-2.558-1.22-0.344-0.124-0.594-0.187-0.844 0.188-0.25 0.374-0.967 1.22-1.186 1.47-0.219 0.25-0.437 0.281-0.811 0.094-0.374-0.188-1.579-0.583-3.007-1.856-1.111-0.992-1.861-2.217-2.079-2.592-0.219-0.374-0.023-0.577 0.164-0.764 0.169-0.167 0.374-0.437 0.562-0.656 0.188-0.219 0.25-0.374 0.374-0.624 0.125-0.25 0.063-0.469-0.031-0.656-0.094-0.188-0.844-2.039-1.157-2.792-0.305-0.734-0.614-0.635-0.844-0.646-0.219-0.010-0.469-0.012-0.719-0.012s-0.656 0.094-1 0.469c-0.344 0.374-1.314 1.282-1.314 3.132s1.345 3.633 1.533 3.883c0.188 0.25 2.647 4.057 6.417 5.687 0.896 0.387 1.595 0.619 2.14 0.792 0.899 0.286 1.719 0.245 2.366 0.148 0.722-0.108 2.214-0.906 2.527-1.781s0.313-1.625 0.219-1.781c-0.094-0.156-0.344-0.25-0.719-0.438z"/>
+            </svg>
+        </a>
 
-                        <g class="transition-all delay-300 translate-y-0 opacity-100 duration-750 starting:opacity-0 starting:translate-y-4">
+        @if (Route::has('login'))
+            <div class="h-14.5 hidden lg:block"></div>
+        @endif
+    </body>
+</html>
                             <path d="M188.263 355.73L188.595 355.73C195.441 348.845 205.766 339.761 219.569 328.477C232.93 317.193 242.978 308.205 249.714 301.511C256.34 294.626 260.867 287.358 263.296 279.708C265.725 272.058 264.565 264.121 259.816 255.896C254.516 246.716 247.062 239.352 237.454 233.805C227.957 228.067 217.908 225.198 207.307 225.198C196.927 225.197 190.136 227.97 186.934 233.516C183.621 238.872 184.726 246.331 190.247 255.894L125.647 255.891C116.371 239.825 112.395 225.481 113.72 212.858C115.265 200.235 121.559 190.481 132.602 183.596C143.754 176.52 158.607 172.982 177.159 172.983C196.594 172.984 215.863 176.523 234.968 183.6C253.961 190.486 271.299 200.241 286.98 212.864C302.661 225.488 315.14 239.833 324.416 255.899C333.03 270.817 336.841 283.918 335.847 295.203C335.075 306.487 331.376 316.336 324.75 324.751C318.346 333.167 308.408 343.494 294.936 355.734L377.094 355.737L405.917 405.656L217.087 405.649L188.263 355.73Z" fill="black"/>
                             <path d="M9.11884 226.339L-13.7396 226.338L-42.7286 176.132L43.0733 176.135L175.595 405.649L112.651 405.647L9.11884 226.339Z" fill="black"/>
                             <path d="M188.263 355.73L188.595 355.73C195.441 348.845 205.766 339.761 219.569 328.477C232.93 317.193 242.978 308.205 249.714 301.511C256.34 294.626 260.867 287.358 263.296 279.708C265.725 272.058 264.565 264.121 259.816 255.896C254.516 246.716 247.062 239.352 237.454 233.805C227.957 228.067 217.908 225.198 207.307 225.198C196.927 225.197 190.136 227.97 186.934 233.516C183.621 238.872 184.726 246.331 190.247 255.894L125.647 255.891C116.371 239.825 112.395 225.481 113.72 212.858C115.265 200.235 121.559 190.481 132.602 183.596C143.754 176.52 158.607 172.982 177.159 172.983C196.594 172.984 215.863 176.523 234.968 183.6C253.961 190.486 271.299 200.241 286.98 212.864C302.661 225.488 315.14 239.833 324.416 255.899C333.03 270.817 336.841 283.918 335.847 295.203C335.075 306.487 331.376 316.336 324.75 324.751C318.346 333.167 308.408 343.494 294.936 355.734L377.094 355.737L405.917 405.656L217.087 405.649L188.263 355.73Z" stroke="#FF750F" stroke-width="1"/>
