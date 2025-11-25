@@ -37,6 +37,7 @@ class TransactionsTable
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
+            ->defaultSort('tanggal', 'desc')
             ->filters([
                 //
             ])

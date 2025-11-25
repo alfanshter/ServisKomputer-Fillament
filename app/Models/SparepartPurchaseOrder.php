@@ -92,56 +92,74 @@ class SparepartPurchaseOrder extends Model
         DB::transaction(function () {
             // 1. Cari atau buat sparepart
             if ($this->is_new_sparepart || !$this->sparepart_id) {
-                // Buat sparepart baru
-                $sparepart = Sparepart::create([
-                    'name' => $this->sparepart_name,
-                    'sku' => $this->sku,
-                    'description' => $this->description,
-                    'quantity' => $this->quantity,
-                    'min_stock' => 5, // default
-                    'cost_price' => $this->cost_price,
-                    'margin_percent' => $this->margin_persen,
-                    'average_cost' => $this->cost_price,
-                    'price' => $this->cost_price + ($this->cost_price * $this->margin_persen / 100),
-                ]);
+                // Cek apakah SKU sudah ada di database
+                $existingSparepart = null;
+                if (!empty($this->sku)) {
+                    $existingSparepart = Sparepart::where('sku', $this->sku)->first();
+                }
 
-                // Update PO dengan sparepart_id baru
-                $this->sparepart_id = $sparepart->id;
-            } else {
+                if ($existingSparepart) {
+                    // SKU sudah ada, gunakan sparepart yang sudah ada
+                    $sparepart = $existingSparepart;
+
+                    // Update PO dengan sparepart_id yang sudah ada
+                    $this->sparepart_id = $sparepart->id;
+                    $this->is_new_sparepart = false; // Set ke false karena ternyata sudah ada
+                } else {
+                    // Buat sparepart baru
+                    $sparepart = Sparepart::create([
+                        'name' => $this->sparepart_name,
+                        'sku' => $this->sku,
+                        'description' => $this->description,
+                        'quantity' => 0, // Akan ditambahkan di bawah
+                        'min_stock' => 5, // default
+                        'cost_price' => $this->cost_price,
+                        'margin_percent' => $this->margin_persen,
+                        'average_cost' => $this->cost_price,
+                        'price' => $this->cost_price + ($this->cost_price * $this->margin_persen / 100),
+                    ]);
+
+                    // Update PO dengan sparepart_id baru
+                    $this->sparepart_id = $sparepart->id;
+                }
+            }
+
+            // Sekarang pasti sudah ada sparepart_id, ambil sparepart-nya
+            if (!isset($sparepart)) {
                 // Update sparepart yang sudah ada
                 $sparepart = $this->sparepart;
-
-                // Simpan quantity lama untuk kalkulasi rata-rata
-                $oldQuantity = $sparepart->quantity;
-                $oldAverageCost = $sparepart->average_cost ?? $sparepart->cost_price ?? 0;
-
-                // Update quantity (tambah stok)
-                $sparepart->quantity += $this->quantity;
-
-                // Hitung average_cost dengan weighted average
-                // Formula: ((qty_lama * harga_lama) + (qty_baru * harga_baru)) / (qty_lama + qty_baru)
-                if ($oldQuantity > 0) {
-                    $totalOldCost = $oldQuantity * $oldAverageCost;
-                    $totalNewCost = $this->quantity * $this->cost_price;
-                    $sparepart->average_cost = ($totalOldCost + $totalNewCost) / ($oldQuantity + $this->quantity);
-                } else {
-                    // Jika stok sebelumnya 0, langsung pakai harga baru
-                    $sparepart->average_cost = $this->cost_price;
-                }
-
-                // Update cost_price terakhir
-                $sparepart->cost_price = $this->cost_price;
-
-                // Update margin_percent jika ada
-                if ($this->margin_persen > 0) {
-                    $sparepart->margin_percent = $this->margin_persen;
-                }
-
-                // Update harga jual berdasarkan margin
-                $sparepart->price = $sparepart->average_cost + ($sparepart->average_cost * $sparepart->margin_percent / 100);
-
-                $sparepart->save();
             }
+
+            // Simpan quantity lama untuk kalkulasi rata-rata
+            $oldQuantity = $sparepart->quantity;
+            $oldAverageCost = $sparepart->average_cost ?? $sparepart->cost_price ?? 0;
+
+            // Update quantity (tambah stok)
+            $sparepart->quantity += $this->quantity;
+
+            // Hitung average_cost dengan weighted average
+            // Formula: ((qty_lama * harga_lama) + (qty_baru * harga_baru)) / (qty_lama + qty_baru)
+            if ($oldQuantity > 0) {
+                $totalOldCost = $oldQuantity * $oldAverageCost;
+                $totalNewCost = $this->quantity * $this->cost_price;
+                $sparepart->average_cost = ($totalOldCost + $totalNewCost) / ($oldQuantity + $this->quantity);
+            } else {
+                // Jika stok sebelumnya 0, langsung pakai harga baru
+                $sparepart->average_cost = $this->cost_price;
+            }
+
+            // Update cost_price terakhir
+            $sparepart->cost_price = $this->cost_price;
+
+            // Update margin_percent jika ada
+            if ($this->margin_persen > 0) {
+                $sparepart->margin_percent = $this->margin_persen;
+            }
+
+            // Update harga jual berdasarkan margin
+            $sparepart->price = $sparepart->average_cost + ($sparepart->average_cost * $sparepart->margin_percent / 100);
+
+            $sparepart->save();
 
             // 2. Buat record di sparepart_purchases untuk history
             SparepartPurchase::create([
