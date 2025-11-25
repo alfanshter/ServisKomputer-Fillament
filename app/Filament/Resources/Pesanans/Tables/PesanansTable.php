@@ -55,7 +55,21 @@ class PesanansTable
                 ")->orderBy('start_date', 'desc');
             })
             ->columns([
-                TextColumn::make('user.name')->label('Customer')->searchable(),
+                TextColumn::make('user.name')
+                    ->label('Customer')
+                    ->searchable()
+                    ->description(fn ($record) => $record->user->phone ?? '-')
+                    ->icon('heroicon-o-user'),
+                TextColumn::make('user.phone')
+                    ->label('WhatsApp')
+                    ->formatStateUsing(fn ($state) => $state ? '💬 Chat' : '-')
+                    ->url(fn ($record) => $record->user->phone
+                        ? 'https://wa.me/' . preg_replace('/^0/', '62', $record->user->phone)
+                        : null)
+                    ->openUrlInNewTab()
+                    ->color('success')
+                    ->icon('heroicon-o-chat-bubble-left-right')
+                    ->tooltip(fn ($record) => $record->user->phone ? 'Klik untuk chat via WhatsApp' : 'No. HP tidak tersedia'),
                 TextColumn::make('device_type')->label('Perangkat'),
                 TextColumn::make('priority')->badge(),
                 TextColumn::make('status')
