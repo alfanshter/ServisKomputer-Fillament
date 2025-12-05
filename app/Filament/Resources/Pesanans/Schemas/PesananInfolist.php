@@ -66,7 +66,51 @@ class PesananInfolist
                     ->placeholder('-')
                     ->columnSpanFull(),
 
-                // 🔩 Sparepart yang Digunakan
+                // �️ Jasa Service yang Dilakukan
+                RepeatableEntry::make('services')
+                    ->label('Jasa Service yang Dilakukan')
+                    ->getStateUsing(function ($record) {
+                        if ($record->services->count() === 0) {
+                            return null;
+                        }
+                        return $record->services->map(function ($service) {
+                            return [
+                                'name' => $service->name,
+                                'category' => $service->category,
+                                'quantity' => $service->pivot->quantity,
+                                'price' => $service->pivot->price,
+                                'subtotal' => $service->pivot->subtotal,
+                            ];
+                        })->toArray();
+                    })
+                    ->schema([
+                        TextEntry::make('name')
+                            ->label('Jasa Service')
+                            ->weight('bold')
+                            ->size('lg'),
+                        TextEntry::make('category')
+                            ->label('Kategori')
+                            ->badge()
+                            ->color('primary'),
+                        TextEntry::make('quantity')
+                            ->label('Jumlah')
+                            ->suffix('x')
+                            ->badge()
+                            ->color('info'),
+                        TextEntry::make('price')
+                            ->label('Harga Satuan')
+                            ->money('IDR', true),
+                        TextEntry::make('subtotal')
+                            ->label('Subtotal')
+                            ->money('IDR', true)
+                            ->weight('bold')
+                            ->color('success'),
+                    ])
+                    ->columns(5)
+                    ->columnSpanFull()
+                    ->visible(fn($record) => $record->services->count() > 0),
+
+                // �🔩 Sparepart yang Digunakan
                 RepeatableEntry::make('spareparts')
                     ->label('Sparepart yang Digunakan')
                     ->getStateUsing(function ($record) {

@@ -94,7 +94,8 @@ class PurchaseOrdersTable
             ->filters([
                 SelectFilter::make('status')
                     ->options([
-                        'pending' => 'Menunggu',
+                        'rekomendasi' => 'Rekomendasi',
+                        'pending' => 'Pending',
                         'shipped' => 'Dikirim',
                         'received' => 'Diterima',
                         'cancelled' => 'Dibatalkan',
@@ -121,6 +122,44 @@ class PurchaseOrdersTable
                     }),
             ])
             ->recordActions([
+                Action::make('approve')
+                    ->label('✅ Dibelikan')
+                    ->icon('heroicon-o-shopping-cart')
+                    ->color('success')
+                    ->visible(fn ($record) => $record->status === 'rekomendasi')
+                    ->requiresConfirmation()
+                    ->modalHeading('Approve Pembelian')
+                    ->modalDescription(fn ($record) => "Customer menyetujui pembelian {$record->quantity} unit {$record->sparepart_name}. Lanjutkan order ke supplier?")
+                    ->modalSubmitActionLabel('Ya, Belikan')
+                    ->action(function ($record) {
+                        $record->update(['status' => 'pending']);
+
+                        Notification::make()
+                            ->success()
+                            ->title('Pembelian Disetujui')
+                            ->body("PO {$record->po_number} diubah ke status 'Pending'. Silakan order ke supplier.")
+                            ->send();
+                    }),
+
+                Action::make('reject')
+                    ->label('❌ Tolak')
+                    ->icon('heroicon-o-x-circle')
+                    ->color('danger')
+                    ->visible(fn ($record) => $record->status === 'rekomendasi')
+                    ->requiresConfirmation()
+                    ->modalHeading('Tolak Rekomendasi')
+                    ->modalDescription(fn ($record) => "Customer menolak pembelian {$record->sparepart_name}. PO akan dibatalkan?")
+                    ->modalSubmitActionLabel('Ya, Batalkan')
+                    ->action(function ($record) {
+                        $record->update(['status' => 'cancelled']);
+
+                        Notification::make()
+                            ->warning()
+                            ->title('Rekomendasi Ditolak')
+                            ->body("PO {$record->po_number} dibatalkan karena customer menolak.")
+                            ->send();
+                    }),
+
                 Action::make('receive')
                     ->label('Terima Barang')
                     ->icon('heroicon-o-check-circle')

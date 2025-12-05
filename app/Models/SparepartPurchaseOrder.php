@@ -208,6 +208,7 @@ class SparepartPurchaseOrder extends Model
     public function getStatusColor(): string
     {
         return match($this->status) {
+            'rekomendasi' => 'gray',
             'pending' => 'warning',
             'shipped' => 'info',
             'received' => 'success',
@@ -222,7 +223,8 @@ class SparepartPurchaseOrder extends Model
     public function getStatusLabel(): string
     {
         return match($this->status) {
-            'pending' => 'Menunggu',
+            'rekomendasi' => 'Rekomendasi',
+            'pending' => 'Pending',
             'shipped' => 'Dikirim',
             'received' => 'Diterima',
             'cancelled' => 'Dibatalkan',

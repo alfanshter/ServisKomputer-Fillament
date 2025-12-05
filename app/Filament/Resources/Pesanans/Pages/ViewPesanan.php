@@ -15,8 +15,8 @@ class ViewPesanan extends ViewRecord
 
     protected function mutateFormDataBeforeFill(array $data): array
     {
-        // Eager load relasi spareparts untuk performa lebih baik
-        $this->record->load('spareparts');
+        // Eager load relasi spareparts dan services untuk performa lebih baik
+        $this->record->load(['spareparts', 'services']);
 
         return $data;
     }

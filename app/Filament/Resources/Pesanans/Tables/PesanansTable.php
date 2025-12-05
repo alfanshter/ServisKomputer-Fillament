@@ -52,7 +52,8 @@ class PesanansTable
                         WHEN 'batal' THEN 11
                         ELSE 12
                     END
-                ")->orderBy('start_date', 'desc');
+                ")
+                    ->orderBy('updated_at', 'desc'); // Urutkan berdasarkan waktu edit terbaru dalam status yang sama
             })
             ->columns([
                 TextColumn::make('user.name')
@@ -316,9 +317,10 @@ class PesanansTable
                                                 $options["stock_{$sp->id}"] = "📦 {$sp->name} - Stok: {$sp->quantity} - Rp" . number_format($sp->price, 0, ',', '.');
                                             }
 
-                                            // 2️⃣ Sparepart dari Purchase Order (pending/shipped)
+                                            // 2️⃣ Sparepart dari Purchase Order
+                                            // SEMUA status termasuk rekomendasi (hasil analisa teknisi)
                                             $sparepartsInPO = \App\Models\SparepartPurchaseOrder::query()
-                                                ->whereIn('status', ['pending', 'shipped'])
+                                                ->whereIn('status', ['rekomendasi', 'pending', 'shipped'])
                                                 ->where('quantity', '>', 0)
                                                 ->with('sparepart')
                                                 ->get();
@@ -326,9 +328,24 @@ class PesanansTable
                                             foreach ($sparepartsInPO as $po) {
                                                 // Ambil nama dari relasi sparepart ATAU dari field sparepart_name
                                                 $name = $po->sparepart?->name ?? $po->sparepart_name ?? 'Unknown';
-                                                $price = $po->sparepart?->price ?? $po->cost_price ?? 0;
 
-                                                $statusLabel = $po->status === 'pending' ? '⏳ Pending' : '🚚 Dikirim';
+                                                // 🔥 Hitung harga jual (cost_price + margin)
+                                                if ($po->sparepart?->price) {
+                                                    // Jika sparepart sudah ada, gunakan price dari master
+                                                    $price = $po->sparepart->price;
+                                                } else {
+                                                    // Jika sparepart baru (dari PO), hitung dari cost_price + margin
+                                                    $costPrice = $po->cost_price ?? 0;
+                                                    $marginPersen = $po->margin_persen ?? 0;
+                                                    $price = $costPrice + ($costPrice * $marginPersen / 100);
+                                                }
+
+                                                $statusLabel = match($po->status) {
+                                                    'rekomendasi' => '📋 Rekomendasi',
+                                                    'pending' => '⏳ Pending',
+                                                    'shipped' => '🚚 Dikirim',
+                                                    default => $po->status,
+                                                };
                                                 $options["po_{$po->id}"] = "🛒 PO: {$name} - {$statusLabel} - Qty: {$po->quantity} - Rp" . number_format($price, 0, ',', '.');
                                             }
 
@@ -359,8 +376,17 @@ class PesanansTable
                                                     $poId = str_replace('po_', '', $state);
                                                     $po = \App\Models\SparepartPurchaseOrder::with('sparepart')->find($poId);
                                                     if ($po) {
-                                                        // Ambil price dari sparepart atau cost_price
-                                                        $price = $po->sparepart?->price ?? $po->cost_price ?? 0;
+                                                        // 🔥 Ambil harga jual (sudah termasuk margin)
+                                                        if ($po->sparepart?->price) {
+                                                            // Jika sparepart sudah ada di master, gunakan price dari master
+                                                            $price = $po->sparepart->price;
+                                                        } else {
+                                                            // Jika sparepart baru (dari PO), hitung dari cost_price + margin
+                                                            $costPrice = $po->cost_price ?? 0;
+                                                            $marginPersen = $po->margin_persen ?? 0;
+                                                            $price = $costPrice + ($costPrice * $marginPersen / 100);
+                                                        }
+
                                                         $set('price', $price);
                                                         $set('max_quantity', $po->quantity);
                                                         $set('source_type', 'po');

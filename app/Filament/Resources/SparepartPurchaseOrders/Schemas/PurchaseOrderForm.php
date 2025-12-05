@@ -42,14 +42,24 @@ class PurchaseOrderForm
                         Select::make('status')
                             ->label('Status')
                             ->options([
-                                'pending' => 'Menunggu',
+                                'rekomendasi' => 'Rekomendasi (Menunggu Persetujuan Customer)',
+                                'pending' => 'Pending (Sudah Order, Belum Dikirim)',
                                 'shipped' => 'Dikirim',
                                 'received' => 'Diterima',
                                 'cancelled' => 'Dibatalkan',
                             ])
-                            ->default('pending')
+                            ->default('rekomendasi')
                             ->required()
-                            ->native(false),
+                            ->native(false)
+                            ->reactive()
+                            ->helperText(fn ($state) => match($state) {
+                                'rekomendasi' => '📋 Sparepart hasil analisa, belum diorder. Menunggu customer approve.',
+                                'pending' => '⏳ Customer approve, sudah order ke supplier, belum dikirim.',
+                                'shipped' => '🚚 Sedang dalam pengiriman.',
+                                'received' => '✅ Barang sudah diterima dan masuk stok.',
+                                'cancelled' => '❌ PO dibatalkan.',
+                                default => null,
+                            }),
                     ])
                     ->columns(2),
 
