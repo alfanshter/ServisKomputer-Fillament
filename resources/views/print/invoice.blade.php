@@ -234,33 +234,42 @@
                 $totalBiaya = 0;
             @endphp
 
-            {{-- Jasa Service dari Master Data --}}
-            @foreach($data->services as $service)
+            {{-- Invoice Items (dari snapshot immutable) --}}
+            @foreach($data->invoiceItems as $item)
             <tr>
                 <td class="text-center">{{ $no++ }}</td>
-                <td><strong>{{ $service->name }}</strong><br><small style="color: #666;">Jasa Service</small></td>
-                <td class="text-center">{{ $service->pivot->quantity }}</td>
-                <td class="text-right">Rp {{ number_format($service->pivot->price, 0, ',', '.') }}</td>
-                <td class="text-right"><strong>Rp {{ number_format($service->pivot->subtotal, 0, ',', '.') }}</strong></td>
+                <td>
+                    <strong>{{ $item->item_name }}</strong><br>
+                    <small style="color: #666;">
+                        @if($item->item_type === 'service')
+                            Jasa Service
+                            @if($item->item_description)
+                                ({{ $item->item_description }})
+                            @endif
+                        @else
+                            Sparepart
+                            @if($item->item_description)
+                                - SKU: {{ $item->item_description }}
+                            @endif
+                        @endif
+                        {{-- Tampilkan source untuk tracking --}}
+                        @if($item->source === 'po')
+                            <span style="color: #f59e0b;"> • Dari PO</span>
+                        @elseif($item->source === 'stock')
+                            <span style="color: #10b981;"> • Dari Stok</span>
+                        @endif
+                    </small>
+                </td>
+                <td class="text-center">{{ $item->quantity }}</td>
+                <td class="text-right">Rp {{ number_format($item->price, 0, ',', '.') }}</td>
+                <td class="text-right"><strong>Rp {{ number_format($item->subtotal, 0, ',', '.') }}</strong></td>
             </tr>
-            @php $totalBiaya += $service->pivot->subtotal; @endphp
-            @endforeach
-
-            {{-- Sparepart --}}
-            @foreach($data->spareparts as $sparepart)
-            <tr>
-                <td class="text-center">{{ $no++ }}</td>
-                <td><strong>{{ $sparepart->name }}</strong><br><small style="color: #666;">Sparepart</small></td>
-                <td class="text-center">{{ $sparepart->pivot->quantity }}</td>
-                <td class="text-right">Rp {{ number_format($sparepart->pivot->price, 0, ',', '.') }}</td>
-                <td class="text-right"><strong>Rp {{ number_format($sparepart->pivot->subtotal, 0, ',', '.') }}</strong></td>
-            </tr>
-            @php $totalBiaya += $sparepart->pivot->subtotal; @endphp
+            @php $totalBiaya += $item->subtotal; @endphp
             @endforeach
 
             {{-- Baris kosong jika kurang dari 3 item --}}
             @php
-                $itemCount = $data->services->count() + $data->spareparts->count();
+                $itemCount = $data->invoiceItems->count();
                 $emptyRows = max(0, 3 - $itemCount);
             @endphp
             @for ($i = 0; $i < $emptyRows; $i++)

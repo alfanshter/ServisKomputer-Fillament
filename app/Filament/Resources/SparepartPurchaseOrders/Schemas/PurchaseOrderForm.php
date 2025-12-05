@@ -58,6 +58,15 @@ class PurchaseOrderForm
                             ->label('Sparepart Baru (belum ada di inventory)')
                             ->reactive()
                             ->default(false)
+                            ->afterStateUpdated(function (Set $set, Get $get, $state) {
+                                // Jika toggle ke "sparepart baru", generate SKU otomatis
+                                if ($state === true) {
+                                    $set('sku', self::generateSKU());
+                                } else {
+                                    // Jika toggle ke existing sparepart, kosongkan dulu
+                                    $set('sku', null);
+                                }
+                            })
                             ->columnSpanFull(),
 
                         Select::make('sparepart_id')
@@ -99,7 +108,12 @@ class PurchaseOrderForm
                             ->label('SKU')
                             ->maxLength(255)
                             ->disabled(fn (Get $get) => !$get('is_new_sparepart') && $get('sparepart_id'))
-                            ->dehydrated(),
+                            ->dehydrated()
+                            ->helperText(fn (Get $get) =>
+                                $get('is_new_sparepart')
+                                    ? '✅ SKU otomatis dibuat. Bisa diedit jika perlu.'
+                                    : 'SKU dari sparepart yang dipilih'
+                            ),
 
                         Textarea::make('description')
                             ->label('Deskripsi')
@@ -197,5 +211,32 @@ class PurchaseOrderForm
         // Hitung total cost
         $totalCost = $quantity * $costPrice;
         $set('total_cost', round($totalCost, 2));
+    }
+
+    /**
+     * Generate SKU otomatis untuk sparepart baru
+     * Format: SPR-YYYY-XXXX (contoh: SPR-2025-0001)
+     */
+    protected static function generateSKU(): string
+    {
+        $year = now()->format('Y');
+        $prefix = "SPR-{$year}-";
+
+        // Cari SKU terakhir untuk tahun ini
+        $lastSKU = \App\Models\Sparepart::where('sku', 'like', $prefix . '%')
+            ->orderBy('sku', 'desc')
+            ->value('sku');
+
+        // Jika tidak ada, mulai dari 0001
+        if (!$lastSKU) {
+            return $prefix . '0001';
+        }
+
+        // Extract nomor urut dari SKU terakhir
+        $lastNumber = (int) substr($lastSKU, -4);
+        $newNumber = $lastNumber + 1;
+
+        // Format dengan 4 digit zero-padding
+        return $prefix . str_pad($newNumber, 4, '0', STR_PAD_LEFT);
     }
 }

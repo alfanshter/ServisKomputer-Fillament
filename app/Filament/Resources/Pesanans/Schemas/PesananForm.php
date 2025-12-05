@@ -193,7 +193,7 @@ class PesananForm
                                 $price = $get('price') ?? 0;
                                 $set('subtotal', $state * $price);
                             })
-                            ->columnSpan(1),
+                            ->columnSpan(['default' => 2, 'sm' => 1]),
 
                         TextInput::make('price')
                             ->label('Harga Satuan')
@@ -205,7 +205,7 @@ class PesananForm
                                 $quantity = $get('quantity') ?? 1;
                                 $set('subtotal', $state * $quantity);
                             })
-                            ->columnSpan(1),
+                            ->columnSpan(['default' => 3, 'sm' => 2]),
 
                         TextInput::make('subtotal')
                             ->label('Subtotal')
@@ -213,9 +213,9 @@ class PesananForm
                             ->prefix('Rp')
                             ->disabled()
                             ->dehydrated()
-                            ->columnSpan(1),
+                            ->columnSpan(['default' => 3, 'sm' => 2]),
                     ])
-                    ->columns(5)
+                    ->columns(['default' => 2, 'sm' => 5])
                     ->columnSpanFull()
                     ->addActionLabel('Tambah Sparepart')
                     ->collapsible()

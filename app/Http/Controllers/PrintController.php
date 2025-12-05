@@ -20,8 +20,8 @@ class PrintController extends Controller
 
     public function invoice($id)
     {
-        $data = Pesanan::with(['user', 'services', 'spareparts'])->findOrFail($id);
-
+        // Load pesanan dengan invoice items (immutable snapshot)
+        $data = Pesanan::with(['user', 'invoiceItems'])->findOrFail($id);
 
         $pdf = Pdf::loadView('print.invoice', compact('data'))
         ->setPaper('a4', 'portrait');

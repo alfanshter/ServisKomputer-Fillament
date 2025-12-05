@@ -337,7 +337,7 @@ class PesanansTable
                                         ->searchable()
                                         ->required()
                                         ->reactive()
-                                        ->afterStateUpdated(function ($state, callable $set) {
+                                        ->afterStateUpdated(function ($state, callable $set, callable $get) {
                                             if ($state) {
                                                 // Cek apakah dari stock atau PO
                                                 if (strpos($state, 'stock_') === 0) {
@@ -349,6 +349,10 @@ class PesanansTable
                                                         $set('max_quantity', $sparepart->quantity);
                                                         $set('source_type', 'stock');
                                                         $set('source_id', $sparepart->id);
+
+                                                        // Hitung subtotal langsung
+                                                        $quantity = $get('quantity') ?? 1;
+                                                        $set('subtotal', $quantity * $sparepart->price);
                                                     }
                                                 } elseif (strpos($state, 'po_') === 0) {
                                                     // Dari Purchase Order
@@ -362,6 +366,10 @@ class PesanansTable
                                                         $set('source_type', 'po');
                                                         $set('source_id', $po->id);
                                                         $set('po_id', $po->id);
+
+                                                        // Hitung subtotal langsung
+                                                        $quantity = $get('quantity') ?? 1;
+                                                        $set('subtotal', $quantity * $price);
                                                     }
                                                 }
                                             }
@@ -383,7 +391,7 @@ class PesanansTable
                                             $price = $get('price') ?? 0;
                                             $set('subtotal', $state * $price);
                                         })
-                                        ->columnSpan(1),
+                                        ->columnSpan(['default' => 2, 'sm' => 1]),
 
                                     TextInput::make('price')
                                         ->label('Harga Satuan')
@@ -395,7 +403,7 @@ class PesanansTable
                                             $quantity = $get('quantity') ?? 1;
                                             $set('subtotal', $state * $quantity);
                                         })
-                                        ->columnSpan(1),
+                                        ->columnSpan(['default' => 3, 'sm' => 2]),
 
                                     TextInput::make('subtotal')
                                         ->label('Subtotal')
@@ -403,9 +411,9 @@ class PesanansTable
                                         ->prefix('Rp')
                                         ->disabled()
                                         ->dehydrated()
-                                        ->columnSpan(1),
+                                        ->columnSpan(['default' => 3, 'sm' => 2]),
                                 ])
-                                ->columns(5)
+                                ->columns(['default' => 2, 'sm' => 5])
                                 ->columnSpanFull()
                                 ->addActionLabel('Tambah Sparepart')
                                 ->collapsible()
@@ -429,11 +437,15 @@ class PesanansTable
                                         ->searchable()
                                         ->required()
                                         ->reactive()
-                                        ->afterStateUpdated(function ($state, callable $set) {
+                                        ->afterStateUpdated(function ($state, callable $set, callable $get) {
                                             if ($state) {
                                                 $service = \App\Models\Service::find($state);
                                                 if ($service) {
                                                     $set('price', $service->price);
+
+                                                    // Hitung subtotal langsung
+                                                    $quantity = $get('quantity') ?? 1;
+                                                    $set('subtotal', $quantity * $service->price);
                                                 }
                                             }
                                         })
@@ -450,7 +462,7 @@ class PesanansTable
                                             $price = $get('price') ?? 0;
                                             $set('subtotal', $state * $price);
                                         })
-                                        ->columnSpan(1),
+                                        ->columnSpan(['default' => 2, 'sm' => 1]),
 
                                     TextInput::make('price')
                                         ->label('Harga')
@@ -462,7 +474,7 @@ class PesanansTable
                                             $quantity = $get('quantity') ?? 1;
                                             $set('subtotal', $state * $quantity);
                                         })
-                                        ->columnSpan(1),
+                                        ->columnSpan(['default' => 3, 'sm' => 2]),
 
                                     TextInput::make('subtotal')
                                         ->label('Subtotal')
@@ -470,9 +482,9 @@ class PesanansTable
                                         ->prefix('Rp')
                                         ->disabled()
                                         ->dehydrated()
-                                        ->columnSpan(1),
+                                        ->columnSpan(['default' => 3, 'sm' => 2]),
                                 ])
-                                ->columns(5)
+                                ->columns(['default' => 2, 'sm' => 5])
                                 ->columnSpanFull()
                                 ->addActionLabel('Tambah Jasa')
                                 ->collapsible()
@@ -1009,6 +1021,78 @@ class PesanansTable
 
                                             // JANGAN update status PO - biarkan manual via "Terima Barang"
                                             // JANGAN kurangi sparepart.quantity - barang belum datang
+                                        }
+                                    }
+                                }
+                            }
+
+                            // 📝 SNAPSHOT: Simpan data invoice items (immutable record)
+                            // Hapus invoice items lama jika ada (untuk handle re-submit)
+                            $record->invoiceItems()->delete();
+
+                            // Simpan jasa ke invoice items
+                            if (!empty($data['services'])) {
+                                foreach ($data['services'] as $serviceData) {
+                                    $service = \App\Models\Service::find($serviceData['service_id']);
+                                    $subtotal = $serviceData['subtotal'] ?? ($serviceData['quantity'] * $serviceData['price']);
+
+                                    \App\Models\PesananInvoiceItem::create([
+                                        'pesanan_id' => $record->id,
+                                        'item_type' => 'service',
+                                        'item_name' => $service->name ?? 'Unknown Service',
+                                        'item_description' => $service->category ?? null,
+                                        'quantity' => $serviceData['quantity'],
+                                        'price' => $serviceData['price'],
+                                        'subtotal' => $subtotal,
+                                        'source' => 'master',
+                                        'source_id' => $serviceData['service_id'],
+                                    ]);
+                                }
+                            }
+
+                            // Simpan sparepart ke invoice items
+                            if (!empty($data['spareparts'])) {
+                                foreach ($data['spareparts'] as $sparepartData) {
+                                    $sourceType = $sparepartData['source_type'] ?? 'stock';
+                                    $quantity = $sparepartData['quantity'];
+                                    $subtotal = $sparepartData['subtotal'] ?? ($quantity * $sparepartData['price']);
+
+                                    if ($sourceType === 'stock') {
+                                        $sparepartId = str_replace('stock_', '', $sparepartData['sparepart_id']);
+                                        $sparepart = \App\Models\Sparepart::find($sparepartId);
+
+                                        if ($sparepart) {
+                                            \App\Models\PesananInvoiceItem::create([
+                                                'pesanan_id' => $record->id,
+                                                'item_type' => 'sparepart',
+                                                'item_name' => $sparepart->name,
+                                                'item_description' => $sparepart->sku ?? null,
+                                                'quantity' => $quantity,
+                                                'price' => $sparepartData['price'],
+                                                'subtotal' => $subtotal,
+                                                'source' => 'stock',
+                                                'source_id' => $sparepart->id,
+                                            ]);
+                                        }
+                                    } elseif ($sourceType === 'po') {
+                                        $poId = $sparepartData['po_id'] ?? str_replace('po_', '', $sparepartData['sparepart_id']);
+                                        $po = \App\Models\SparepartPurchaseOrder::with('sparepart')->find($poId);
+
+                                        if ($po) {
+                                            $sparepartName = $po->sparepart?->name ?? $po->sparepart_name ?? 'Unknown Sparepart';
+                                            $sku = $po->sparepart?->sku ?? $po->sku ?? null;
+
+                                            \App\Models\PesananInvoiceItem::create([
+                                                'pesanan_id' => $record->id,
+                                                'item_type' => 'sparepart',
+                                                'item_name' => $sparepartName,
+                                                'item_description' => $sku,
+                                                'quantity' => $quantity,
+                                                'price' => $sparepartData['price'],
+                                                'subtotal' => $subtotal,
+                                                'source' => 'po',
+                                                'source_id' => $po->id,
+                                            ]);
                                         }
                                     }
                                 }

@@ -78,4 +78,22 @@ class Pesanan extends Model
             ->where('status', 'pending');
     }
 
+    /**
+     * Invoice Items - untuk snapshot data invoice yang immutable
+     */
+    public function invoiceItems()
+    {
+        return $this->hasMany(PesananInvoiceItem::class);
+    }
+
+    public function invoiceServices()
+    {
+        return $this->hasMany(PesananInvoiceItem::class)->where('item_type', 'service');
+    }
+
+    public function invoiceSpareparts()
+    {
+        return $this->hasMany(PesananInvoiceItem::class)->where('item_type', 'sparepart');
+    }
+
 }
