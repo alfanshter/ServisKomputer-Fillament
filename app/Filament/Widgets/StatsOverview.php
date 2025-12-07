@@ -10,11 +10,14 @@ use App\Models\Transaction;
 use App\Models\Sparepart;
 use App\Models\SparepartPurchaseOrder;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Auth;
 
 class StatsOverview extends BaseWidget
 {
     protected function getStats(): array
     {
+        $userRole = Auth::user()?->role;
+
         // small cache to avoid heavy queries on every dashboard load
         $metrics = Cache::remember('dashboard_stats_overview', now()->addMinutes(5), function () {
             // Statistik Pesanan
@@ -61,7 +64,7 @@ class StatsOverview extends BaseWidget
             ];
         });
 
-        return [
+        $stats = [
             // Row 1: Status Pesanan
             Stat::make('Belum Mulai', $metrics['pesananBelumMulai'])
                 ->description('Pesanan baru masuk')
@@ -87,40 +90,47 @@ class StatsOverview extends BaseWidget
                 ->description('Transaksi selesai')
                 ->icon('heroicon-o-banknotes')
                 ->color('primary'),
+        ];
 
-            // Row 2: Keuangan
-            Stat::make('Pendapatan', 'Rp ' . number_format($metrics['pendapatan'], 0, ',', '.'))
+        // 🔒 Keuangan hanya untuk Admin & Supervisor
+        if (in_array($userRole, ['admin', 'supervisor'])) {
+            $stats[] = Stat::make('Pendapatan', 'Rp ' . number_format($metrics['pendapatan'], 0, ',', '.'))
                 ->description('Total pemasukan')
                 ->icon('heroicon-o-arrow-trending-up')
-                ->color('success'),
+                ->color('success');
 
-            Stat::make('Pengeluaran', 'Rp ' . number_format($metrics['pengeluaran'], 0, ',', '.'))
+            $stats[] = Stat::make('Pengeluaran', 'Rp ' . number_format($metrics['pengeluaran'], 0, ',', '.'))
                 ->description('Total pengeluaran')
                 ->icon('heroicon-o-arrow-trending-down')
-                ->color('danger'),
+                ->color('danger');
 
-            Stat::make('Laba Bersih', 'Rp ' . number_format($metrics['labaBersih'], 0, ',', '.'))
+            $stats[] = Stat::make('Laba Bersih', 'Rp ' . number_format($metrics['labaBersih'], 0, ',', '.'))
                 ->description('Pendapatan - Pengeluaran')
                 ->icon('heroicon-o-currency-dollar')
-                ->color($metrics['labaBersih'] >= 0 ? 'success' : 'danger'),
+                ->color($metrics['labaBersih'] >= 0 ? 'success' : 'danger');
+        }
 
-            // Row 3: Inventory & Lainnya
-            Stat::make('Total Pelanggan', $metrics['totalPelanggan'])
-                ->description('Pelanggan terdaftar')
-                ->icon('heroicon-o-user-group')
-                ->color('info'),
+        // Row 3: Inventory & Lainnya
+        $stats[] = Stat::make('Total Pelanggan', $metrics['totalPelanggan'])
+            ->description('Pelanggan terdaftar')
+            ->icon('heroicon-o-user-group')
+            ->color('info');
 
-            Stat::make('Sparepart', $metrics['totalSparepart'])
-                ->description($metrics['sparepartLowStock'] > 0
-                    ? "{$metrics['sparepartLowStock']} stok menipis!"
-                    : 'Stok aman')
-                ->icon('heroicon-o-cog')
-                ->color($metrics['sparepartLowStock'] > 0 ? 'warning' : 'success'),
+        $stats[] = Stat::make('Sparepart', $metrics['totalSparepart'])
+            ->description($metrics['sparepartLowStock'] > 0
+                ? "{$metrics['sparepartLowStock']} stok menipis!"
+                : 'Stok aman')
+            ->icon('heroicon-o-cog')
+            ->color($metrics['sparepartLowStock'] > 0 ? 'warning' : 'success');
 
-            Stat::make('PO Pending', $metrics['poPending'])
+        // 🔒 PO hanya untuk Admin & Supervisor
+        if (in_array($userRole, ['admin', 'supervisor'])) {
+            $stats[] = Stat::make('PO Pending', $metrics['poPending'])
                 ->description('Menunggu/Dalam pengiriman')
                 ->icon('heroicon-o-shopping-cart')
-                ->color($metrics['poPending'] > 0 ? 'warning' : 'gray'),
-        ];
+                ->color($metrics['poPending'] > 0 ? 'warning' : 'gray');
+        }
+
+        return $stats;
     }
 }

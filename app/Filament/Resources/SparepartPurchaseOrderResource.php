@@ -12,6 +12,7 @@ use BackedEnum;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Tables\Table;
+use Illuminate\Support\Facades\Auth;
 
 class SparepartPurchaseOrderResource extends Resource
 {
@@ -22,6 +23,38 @@ class SparepartPurchaseOrderResource extends Resource
     protected static ?string $navigationLabel = 'Order Sparepart';
 
     protected static ?string $recordTitleAttribute = 'po_number';
+
+    // 🔒 Hanya Admin & Supervisor yang bisa order sparepart
+    public static function canCreate(): bool
+    {
+        return in_array(Auth::user()?->role, ['admin', 'supervisor']);
+    }
+
+    public static function canEdit($record): bool
+    {
+        return in_array(Auth::user()?->role, ['admin', 'supervisor']);
+    }
+
+    public static function canDelete($record): bool
+    {
+        return in_array(Auth::user()?->role, ['admin', 'supervisor']);
+    }
+
+    public static function canDeleteAny(): bool
+    {
+        return in_array(Auth::user()?->role, ['admin', 'supervisor']);
+    }
+
+    // 🔒 Teknisi tidak bisa akses menu ini sama sekali
+    public static function canViewAny(): bool
+    {
+        return in_array(Auth::user()?->role, ['admin', 'supervisor']);
+    }
+
+    public static function shouldRegisterNavigation(): bool
+    {
+        return in_array(Auth::user()?->role, ['admin', 'supervisor']);
+    }
 
     public static function form(Schema $schema): Schema
     {

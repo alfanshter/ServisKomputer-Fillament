@@ -13,6 +13,7 @@ use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
+use Illuminate\Support\Facades\Auth;
 
 class TransactionResource extends Resource
 {
@@ -23,6 +24,38 @@ class TransactionResource extends Resource
     protected static ?string $navigationLabel = 'Transaksi';
 
     protected static ?string $recordTitleAttribute = 'Transcantion';
+
+    // 🔒 Hanya Admin & Supervisor yang bisa akses transaksi keuangan
+    public static function canCreate(): bool
+    {
+        return in_array(Auth::user()?->role, ['admin', 'supervisor']);
+    }
+
+    public static function canEdit($record): bool
+    {
+        return in_array(Auth::user()?->role, ['admin', 'supervisor']);
+    }
+
+    public static function canDelete($record): bool
+    {
+        return in_array(Auth::user()?->role, ['admin', 'supervisor']);
+    }
+
+    public static function canDeleteAny(): bool
+    {
+        return in_array(Auth::user()?->role, ['admin', 'supervisor']);
+    }
+
+    // 🔒 Teknisi tidak bisa akses menu ini sama sekali
+    public static function canViewAny(): bool
+    {
+        return in_array(Auth::user()?->role, ['admin', 'supervisor']);
+    }
+
+    public static function shouldRegisterNavigation(): bool
+    {
+        return in_array(Auth::user()?->role, ['admin', 'supervisor']);
+    }
 
     public static function form(Schema $schema): Schema
     {

@@ -13,6 +13,7 @@ use Filament\Forms\Components\Repeater;
 use Filament\Schemas\Components\Group;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
+use Illuminate\Support\Facades\Auth;
 
 class PesananForm
 {
@@ -115,6 +116,7 @@ class PesananForm
                         'on hold' => 'On Hold',
                         'revisi' => 'Revisi',
                         'selesai' => 'Selesai',
+                        'siap_diambil' => 'Siap Diambil',
                         'dibayar' => 'Dibayar',
                         'batal' => 'Batal',
                     ])
@@ -122,6 +124,26 @@ class PesananForm
                     ->dehydrated()
                     ->helperText('⚠️ Status hanya bisa diubah melalui tombol action di tabel'),
 
+                // 💰 Diskon - hanya di halaman edit (Admin/Supervisor only)
+                TextInput::make('discount')
+                    ->label('Diskon')
+                    ->visibleOn('edit')
+                    ->numeric()
+                    ->prefix('Rp')
+                    ->default(0)
+                    ->nullable()
+                    ->helperText(function () {
+                        $userRole = Auth::user()?->role;
+                        if (in_array($userRole, ['admin', 'supervisor'])) {
+                            return '💡 Anda dapat mengubah diskon di sini';
+                        }
+                        return '🔒 Hanya Admin/Supervisor yang dapat mengubah diskon';
+                    })
+                    // 🔒 Hanya Admin/Supervisor yang bisa edit
+                    ->disabled(fn() => !in_array(Auth::user()?->role, ['admin', 'supervisor']))
+                    ->dehydrated(fn() => in_array(Auth::user()?->role, ['admin', 'supervisor'])),
+
+                // 💵 Total Biaya - readonly
                 TextInput::make('total_cost')
                     ->label('Total Biaya')
                     ->visibleOn('edit')
@@ -131,21 +153,13 @@ class PesananForm
                     ->dehydrated(false)
                     ->helperText('Total otomatis dihitung (Jasa + Sparepart - Diskon)'),
 
-                TextInput::make('discount')
-                    ->label('Diskon')
-                    ->visibleOn('edit')
-                    ->numeric()
-                    ->prefix('Rp')
-                    ->nullable()
-                    ->helperText('Masukkan nilai diskon jika ada'),
-
                 // 🔧 Edit Sparepart - hanya visible jika status sudah selesai_analisa atau lebih
                 Repeater::make('spareparts_edit')
                     ->label('Sparepart yang Digunakan')
                     ->visibleOn('edit')
                     ->visible(fn($record) => $record && in_array($record->status, [
                         'selesai_analisa', 'konfirmasi', 'dalam proses',
-                        'menunggu sparepart', 'on hold', 'revisi', 'selesai', 'dibayar'
+                        'menunggu sparepart', 'on hold', 'revisi', 'selesai', 'siap_diambil', 'dibayar'
                     ]))
                     ->schema([
                         Select::make('sparepart_id')
@@ -228,7 +242,7 @@ class PesananForm
                     ->visibleOn('edit')
                     ->visible(fn($record) => $record && in_array($record->status, [
                         'selesai_analisa', 'konfirmasi', 'dalam proses',
-                        'menunggu sparepart', 'on hold', 'revisi', 'selesai', 'dibayar'
+                        'menunggu sparepart', 'on hold', 'revisi', 'selesai', 'siap_diambil', 'dibayar'
                     ]))
                     ->schema([
                         Select::make('service_id')

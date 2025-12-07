@@ -26,6 +26,9 @@ class UserResource extends Resource
 
     protected static ?string $recordTitleAttribute = 'user';
 
+    // ❌ Nonaktifkan resource ini, sudah diganti dengan CustomerResource & TeamResource
+    protected static bool $shouldRegisterNavigation = false;
+
     public static function form(Schema $schema): Schema
     {
         return UserForm::configure($schema);

@@ -13,6 +13,7 @@ use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
+use Illuminate\Support\Facades\Auth;
 
 class SparepartResource extends Resource
 {
@@ -23,6 +24,27 @@ class SparepartResource extends Resource
     protected static ?string $navigationLabel = 'Sparepart';
 
     protected static ?string $recordTitleAttribute = 'Sparepart';
+
+    // 🔒 Teknisi bisa lihat tapi tidak bisa create/edit/delete
+    public static function canCreate(): bool
+    {
+        return in_array(Auth::user()?->role, ['admin', 'supervisor']);
+    }
+
+    public static function canEdit($record): bool
+    {
+        return in_array(Auth::user()?->role, ['admin', 'supervisor']);
+    }
+
+    public static function canDelete($record): bool
+    {
+        return in_array(Auth::user()?->role, ['admin', 'supervisor']);
+    }
+
+    public static function canDeleteAny(): bool
+    {
+        return in_array(Auth::user()?->role, ['admin', 'supervisor']);
+    }
 
     public static function form(Schema $schema): Schema
     {

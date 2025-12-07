@@ -7,6 +7,7 @@ use App\Models\PesananOrderPhoto;
 use App\Models\User;
 use Filament\Resources\Pages\CreateRecord;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 
 class CreatePesanan extends CreateRecord
 {
@@ -22,8 +23,8 @@ class CreatePesanan extends CreateRecord
                 'email' => $data['email'],
                 'phone' => $data['phone'],
                 'address' => $data['address'] ?? null,
-                'role' => 'user',
-                'password' => Hash::make($data['email']), // default password
+                'role' => 'customer', // ✅ Standarisasi role sebagai 'customer'
+                'password' => Hash::make(Str::random(16)), // ✅ Password random yang aman
             ]);
 
             $data['user_id'] = $user->id;

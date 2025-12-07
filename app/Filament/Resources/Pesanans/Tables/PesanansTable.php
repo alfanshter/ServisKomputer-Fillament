@@ -48,9 +48,10 @@ class PesanansTable
                         WHEN 'on hold' THEN 7
                         WHEN 'revisi' THEN 8
                         WHEN 'selesai' THEN 9
-                        WHEN 'dibayar' THEN 10
-                        WHEN 'batal' THEN 11
-                        ELSE 12
+                        WHEN 'siap_diambil' THEN 10
+                        WHEN 'dibayar' THEN 11
+                        WHEN 'batal' THEN 12
+                        ELSE 13
                     END
                 ")
                     ->orderBy('updated_at', 'desc'); // Urutkan berdasarkan waktu edit terbaru dalam status yang sama
@@ -85,6 +86,7 @@ class PesanansTable
                         'on hold' => 'gray',
                         'revisi' => 'warning',
                         'selesai' => 'success',
+                        'siap_diambil' => 'teal',
                         'dibayar' => 'emerald',
                         'batal' => 'danger',
                         default => 'gray',
@@ -114,6 +116,7 @@ class PesanansTable
                         'on hold' => 'On Hold',
                         'revisi' => 'Revisi',
                         'selesai' => 'Selesai',
+                        'siap_diambil' => 'Siap Diambil',
                         'dibayar' => 'Dibayar',
                         'batal' => 'Batal',
                     ]),
@@ -193,6 +196,12 @@ class PesanansTable
                     ->icon('heroicon-o-arrow-left')
                     ->size('md')
                     ->visible(function ($record) {
+                        // 🔒 Hanya Admin & Supervisor yang bisa rollback status
+                        $userRole = Auth::user()?->role;
+                        if (!in_array($userRole, ['admin', 'supervisor'])) {
+                            return false;
+                        }
+
                         // Hanya tampil jika ada history status sebelumnya
                         $lastHistory = $record->statusHistories()
                             ->orderBy('created_at', 'desc')
@@ -270,7 +279,15 @@ class PesanansTable
                     ->color('danger')
                     ->icon('heroicon-o-x-circle')
                     ->size('md')
-                    ->visible(fn($record) => !in_array($record->status, ['batal', 'dibayar']))
+                    ->visible(function ($record) {
+                        // 🔒 Hanya Admin & Supervisor yang bisa cancel pesanan
+                        $userRole = Auth::user()?->role;
+                        if (!in_array($userRole, ['admin', 'supervisor'])) {
+                            return false;
+                        }
+
+                        return !in_array($record->status, ['batal', 'dibayar']);
+                    })
                     ->requiresConfirmation()
                     ->modalHeading('Cancel Pesanan?')
                     ->modalDescription('Apakah Anda yakin ingin cancel pesanan ini?')
@@ -318,7 +335,8 @@ class PesanansTable
                         'konfirmasi' => 'Next Step',
                         'dalam proses' => 'Selesai',
                         'menunggu sparepart' => 'Lanjut Proses',
-                        'selesai' => 'Tandai Dibayar',
+                        'selesai' => 'Kabari Customer',
+                        'siap_diambil' => 'Tandai Dibayar',
                         'dibayar' => 'Revisi',
                         'batal' => 'Batalkan',
                         'revisi' => 'Revisi Selesai',
@@ -328,19 +346,63 @@ class PesanansTable
                     ->color('primary')
                     ->icon('heroicon-o-arrow-right')
                     ->size('md')
-                    ->visible(fn($record) => in_array($record->status, [
-                        'belum mulai',
-                        'analisa',
-                        'selesai_analisa',
-                        'konfirmasi',
-                        'dalam proses',
-                        'menunggu sparepart',
-                        'selesai',
-                        'dibayar',
-                        'batal',
-                        'revisi',
-                        'on hold'
-                    ]))
+                    ->visible(function ($record) {
+                        $userRole = Auth::user()?->role;
+                        $status = $record->status;
+
+                        // Cek apakah status ada dalam daftar yang bisa diproses
+                        if (!in_array($status, [
+                            'belum mulai',
+                            'analisa',
+                            'selesai_analisa',
+                            'konfirmasi',
+                            'dalam proses',
+                            'menunggu sparepart',
+                            'selesai',
+                            'siap_diambil',
+                            'dibayar',
+                            'batal',
+                            'revisi',
+                            'on hold'
+                        ])) {
+                            return false;
+                        }
+
+                        // 🔒 Pembatasan berdasarkan role dan status
+                        return match ($status) {
+                            // ✅ Teknisi: bisa mulai analisa (dari belum mulai)
+                            'belum mulai' => in_array($userRole, ['teknisi', 'admin', 'supervisor']),
+
+                            // ✅ Teknisi: selesaikan analisa
+                            'analisa' => in_array($userRole, ['teknisi', 'admin', 'supervisor']),
+
+                            // ✅ Admin/Supervisor: konfirmasi ke customer
+                            'selesai_analisa' => in_array($userRole, ['admin', 'supervisor']),
+
+                            // ✅ Admin/Supervisor: proses konfirmasi customer
+                            'konfirmasi' => in_array($userRole, ['admin', 'supervisor']),
+
+                            // ✅ Teknisi: tandai pekerjaan selesai
+                            'dalam proses' => in_array($userRole, ['teknisi', 'admin', 'supervisor']),
+
+                            // ✅ Teknisi/Admin: lanjutkan dari menunggu sparepart
+                            'menunggu sparepart' => in_array($userRole, ['teknisi', 'admin', 'supervisor']),
+
+                            // ✅ Admin/Supervisor: kabari customer (selesai → siap_diambil)
+                            'selesai' => in_array($userRole, ['admin', 'supervisor']),
+
+                            // ✅ Admin/Supervisor: tandai dibayar (siap_diambil → dibayar)
+                            'siap_diambil' => in_array($userRole, ['admin', 'supervisor']),
+
+                            // ✅ Teknisi/Admin: proses revisi
+                            'revisi' => in_array($userRole, ['teknisi', 'admin', 'supervisor']),
+
+                            // ✅ Teknisi/Admin: lanjutkan dari on hold
+                            'on hold' => in_array($userRole, ['teknisi', 'admin', 'supervisor']),
+
+                            default => false,
+                        };
+                    })
                     ->modalHeading(fn($record) => match ($record->status) {
                         'konfirmasi' => 'Konfirmasi Tindakan Servis',
                         default => null,
@@ -370,13 +432,10 @@ class PesanansTable
                                 ->rows(4)
                                 ->required(),
 
-                            TextInput::make('discount')
-                                ->label('Diskon')
-                                ->numeric()
-                                ->prefix('Rp')
-                                ->default(0)
-                                ->helperText('Masukkan nilai diskon jika ada')
-                                ->nullable(),
+                            Placeholder::make('discount_info')
+                                ->label('Informasi Diskon')
+                                ->content('💡 Untuk memberikan diskon, silakan edit pesanan setelah analisa selesai. Hanya Admin/Supervisor yang dapat mengubah diskon.')
+                                ->columnSpanFull(),
 
                             Repeater::make('spareparts')
                                 ->label('Sparepart yang Digunakan')
@@ -701,8 +760,30 @@ class PesanansTable
                             ])
 
                         ],
-
+                        // Status selesai (teknisi) → Kabari customer
                         'selesai' => [
+                            Textarea::make('template')
+                                ->label('Template Chat WhatsApp - Barang Siap Diambil')
+                                ->rows(15)
+                                ->helperText('Template sudah otomatis terisi. Kirim ke customer untuk memberitahu barang sudah selesai.')
+                                ->columnSpanFull(),
+
+                            Actions::make([
+                                Action::make('send_whatsapp')
+                                    ->label('Kirim ke WhatsApp')
+                                    ->icon('heroicon-o-chat-bubble-bottom-center-text')
+                                    ->color('success')
+                                    ->url(function ($record, $get) {
+                                        $phone = preg_replace('/^0/', '62', $record->user->phone ?? '');
+                                        $message = urlencode($get('template'));
+                                        return "https://wa.me/{$phone}?text={$message}";
+                                    })
+                                    ->openUrlInNewTab()
+                            ])
+                        ],
+
+                        // Status siap_diambil (admin) → Tandai dibayar
+                        'siap_diambil' => [
                             Select::make('metode_pembayaran')
                                 ->label('Metode Pembayaran')
                                 ->options([
@@ -720,7 +801,7 @@ class PesanansTable
                                 ->default('cash'),
 
                             Textarea::make('template')
-                                ->label('Template Chat')
+                                ->label('Template Chat - Terima Kasih')
                                 ->rows(10)
                                 ->helperText('Template sudah otomatis terisi. Anda bisa mengedit sebelum mengirim.')
                                 ->columnSpanFull(),
@@ -806,39 +887,23 @@ class PesanansTable
                             ->fullWidth()
                             ->columnSpanFull(),
                         ],
+                        // Status dalam proses → Selesai (Teknisi upload foto + catatan, LANGSUNG selesai tanpa WA)
                         'dalam proses' => [
                             Textarea::make('notes')
                                 ->label('Catatan Hasil Pekerjaan')
                                 ->rows(4)
-                                ->required(),
+                                ->required()
+                                ->helperText('Jelaskan apa saja yang sudah dikerjakan'),
 
                             FileUpload::make('after')
-                                ->label('Foto Hasil')
+                                ->label('Foto Hasil Servis')
                                 ->image()
                                 ->multiple()
                                 ->reorderable()
                                 ->directory('after')
                                 ->maxFiles(10)
-                                ->required(),
-
-                            Textarea::make('template')
-                                ->label('Template Chat WhatsApp')
-                                ->rows(20)
-                                ->helperText('Template sudah otomatis terisi. Anda bisa mengedit sebelum mengirim.')
-                                ->columnSpanFull(),
-
-                            Actions::make([
-                                Action::make('send_whatsapp')
-                                    ->label('Kirim ke WhatsApp')
-                                    ->icon('heroicon-o-chat-bubble-bottom-center-text')
-                                    ->color('success')
-                                    ->url(function ($record, $get) {
-                                        $phone = preg_replace('/^0/', '62', $record->user->phone ?? '');
-                                        $message = urlencode($get('template'));
-                                        return "https://wa.me/{$phone}?text={$message}";
-                                    })
-                                    ->openUrlInNewTab()
-                            ])
+                                ->required()
+                                ->helperText('Upload foto setelah servis selesai'),
                         ],
                         default => [],
                     })
@@ -981,36 +1046,34 @@ class PesanansTable
                             $formData['template'] = $message;
                         }
 
-                        // 🔥 Fill template WhatsApp untuk status dalam proses
-                        if ($record->status === 'dalam proses') {
+                        // 🔥 Fill template WhatsApp untuk status selesai (kabari customer)
+                        if ($record->status === 'selesai') {
                             // Reload record dengan relasi untuk memastikan data lengkap
                             $record->load(['user', 'services', 'spareparts']);
 
                             $nama = $record->user->name ?? 'Pelanggan';
-                            $device = $record->device_type ?? 'Perangkat';
 
                             $message = "Halo Kak {$nama} 👋\n\n";
-                            $message .= "Kabar baik! 🎉\n\n";
-                            $message .= "*{$device}* Kakak sudah *selesai diservis* dan siap digunakan kembali ✅\n\n";
-                            $message .= "💰 *RINCIAN BIAYA:*\n";
+                            $message .= "*Kabar Gembira!* 🎉\n\n";
+                            $message .= "Servis perangkat Kakak sudah *SELESAI* dikerjakan ✅\n\n";
+                            $message .= "📱 *Perangkat:* {$record->device_type}\n";
+                            $message .= "🔧 *Pekerjaan yang dilakukan:*\n";
+                            $message .= "{$record->notes}\n\n";
 
-                            // Jasa Service dari master data
+                            // Rincian biaya
                             $totalJasaCost = 0;
                             if ($record->services && $record->services->count() > 0) {
+                                $message .= "💰 *Rincian Biaya:*\n";
                                 foreach ($record->services as $service) {
                                     $qty = $service->pivot->quantity;
                                     $price = $service->pivot->price;
                                     $subtotal = $service->pivot->subtotal;
                                     $totalJasaCost += $subtotal;
-
-                                    $priceFormat = 'Rp' . number_format($price, 0, ',', '.');
                                     $subtotalFormat = 'Rp' . number_format($subtotal, 0, ',', '.');
-
-                                    $message .= "• {$service->name} ({$qty}x {$priceFormat}): {$subtotalFormat}\n";
+                                    $message .= "• {$service->name}: {$subtotalFormat}\n";
                                 }
                             }
 
-                            // Sparepart yang digunakan
                             $totalSparepart = 0;
                             if ($record->spareparts && $record->spareparts->count() > 0) {
                                 foreach ($record->spareparts as $sparepart) {
@@ -1018,43 +1081,33 @@ class PesanansTable
                                     $price = $sparepart->pivot->price;
                                     $subtotal = $sparepart->pivot->subtotal;
                                     $totalSparepart += $subtotal;
-
-                                    $priceFormat = 'Rp' . number_format($price, 0, ',', '.');
                                     $subtotalFormat = 'Rp' . number_format($subtotal, 0, ',', '.');
-
-                                    $message .= "• {$sparepart->name} ({$qty}x {$priceFormat}): {$subtotalFormat}\n";
+                                    $message .= "• {$sparepart->name}: {$subtotalFormat}\n";
                                 }
                             }
 
-                            // Subtotal
-                            $subtotalAll = $totalJasaCost + $totalSparepart;
-                            $subtotalAllFormat = 'Rp' . number_format($subtotalAll, 0, ',', '.');
-                            $message .= "\n_Subtotal: {$subtotalAllFormat}_\n";
-
-                            // Diskon (jika ada)
                             $diskon = $record->discount ?? 0;
                             if ($diskon > 0) {
                                 $diskonFormat = 'Rp' . number_format($diskon, 0, ',', '.');
-                                $message .= "_Diskon: -{$diskonFormat}_\n";
+                                $message .= "• Diskon: -{$diskonFormat}\n";
                             }
 
-                            // Total keseluruhan
-                            $totalBiaya = $record->total_cost ?? ($subtotalAll - $diskon);
+                            $totalBiaya = $record->total_cost ?? (($totalJasaCost + $totalSparepart) - $diskon);
                             $totalBiayaFormat = 'Rp' . number_format($totalBiaya, 0, ',', '.');
+                            $message .= "\n*TOTAL: {$totalBiayaFormat}*\n\n";
 
-                            $message .= "\n*TOTAL BIAYA: {$totalBiayaFormat}*\n\n";
-                            $message .= "Kakak bisa:\n";
-                            $message .= "📍 Ambil langsung di *PWS Computer Service Center*, atau\n";
-                            $message .= "🚚 Kami bantu *antar ke alamat Kakak* (biaya ongkir sesuai jarak)\n\n";
-                            $message .= "Mohon konfirmasinya ya Kak, apakah ingin *diambil sendiri* atau *dikirim*? 🙏\n\n";
-                            $message .= "Terima kasih atas kepercayaannya 💙\n";
+                            $message .= "Perangkat Kakak sudah *siap diambil* dan menunggu di tempat kami 🏪\n\n";
+                            $message .= "Silakan ambil di *PWS Computer Service Center* pada jam operasional:\n";
+                            $message .= "📍 Senin - Sabtu: 09:00 - 17:00 WIB\n\n";
+                            $message .= "Atau jika mau *diantar*, silakan konfirmasi ke kami (ada biaya ongkir).\n\n";
+                            $message .= "Terima kasih Kak! 🙏💙\n";
                             $message .= "*PWS Computer Service Center*";
 
                             $formData['template'] = $message;
                         }
 
-                        // 🔥 Fill template WhatsApp untuk status selesai (tandai dibayar)
-                        if ($record->status === 'selesai') {
+                        // 🔥 Fill template WhatsApp untuk status siap_diambil (tandai dibayar)
+                        if ($record->status === 'siap_diambil') {
                             // Reload record dengan relasi untuk memastikan data lengkap
                             $record->load(['user']);
 
@@ -1096,7 +1149,8 @@ class PesanansTable
                             'konfirmasi' => 'dalam proses',
                             'dalam proses' => 'selesai',
                             'menunggu sparepart' => 'dalam proses',
-                            'selesai' => 'dibayar',
+                            'selesai' => 'siap_diambil',        // ✅ Teknisi selesai → Admin kabari customer
+                            'siap_diambil' => 'dibayar',        // ✅ Admin tandai dibayar
                             'dibayar' => 'revisi',        // sudah final
                             'batal' => 'batal',
                             'revisi' => 'dibayar',
@@ -1391,7 +1445,10 @@ class PesanansTable
                                 ]);
                             }
                         } elseif ($record->status === 'selesai') {
-                            // Update status ke dibayar
+                            // selesai → siap_diambil (Kabari Customer): hanya update status, TIDAK create transaksi
+                            $record->update(['status' => $nextStatus]);
+                        } elseif ($record->status === 'siap_diambil') {
+                            // siap_diambil → dibayar (Tandai Dibayar): CREATE transaksi pemasukan
                             $record->update(['status' => $nextStatus]);
 
                             // 🔥 Hitung total biaya (untuk data lama yang total_cost masih NULL/0)
