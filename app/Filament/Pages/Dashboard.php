@@ -4,6 +4,8 @@ namespace App\Filament\Pages;
 
 use Filament\Pages\Dashboard as BaseDashboard;
 use App\Filament\Widgets\StatsOverview;
+use App\Filament\Widgets\CreditCardStatsWidget;
+use App\Filament\Widgets\UpcomingCreditCardBillsWidget;
 use BackedEnum;
 
 class Dashboard extends BaseDashboard
@@ -14,6 +16,8 @@ protected static BackedEnum|string|null $navigationIcon = null;
     {
         return [
             StatsOverview::class,
+            CreditCardStatsWidget::class,
+            UpcomingCreditCardBillsWidget::class,
         ];
     }
 }

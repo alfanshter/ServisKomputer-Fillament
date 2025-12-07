@@ -16,6 +16,8 @@ class SparepartPurchase extends Model
         'notes',
         'margin_persen',
         'harga_jual',
+        'payment_method',
+        'credit_card_id',
     ];
 
     protected $casts = [
@@ -29,5 +31,15 @@ class SparepartPurchase extends Model
     public function sparepart()
     {
         return $this->belongsTo(Sparepart::class);
+    }
+
+    public function creditCard()
+    {
+        return $this->belongsTo(CreditCard::class);
+    }
+
+    public function creditCardTransaction()
+    {
+        return $this->hasOne(CreditCardTransaction::class);
     }
 }

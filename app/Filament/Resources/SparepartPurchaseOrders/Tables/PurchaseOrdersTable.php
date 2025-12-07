@@ -62,8 +62,26 @@ class PurchaseOrdersTable
 
                 TextColumn::make('payment_method')
                     ->label('Pembayaran')
+                    ->badge()
+                    ->colors([
+                        'success' => 'cash',
+                        'primary' => 'transfer',
+                        'warning' => 'credit_card',
+                    ])
+                    ->formatStateUsing(fn ($state) => match($state) {
+                        'cash' => '💵 Cash',
+                        'transfer' => '🏦 Transfer',
+                        'credit_card' => '💳 Kartu Kredit',
+                        default => $state ?? '-',
+                    })
                     ->searchable()
                     ->toggleable(),
+
+                TextColumn::make('creditCard.card_name')
+                    ->label('Kartu Kredit')
+                    ->placeholder('-')
+                    ->toggleable()
+                    ->searchable(),
 
                 TextColumn::make('estimated_arrival')
                     ->label('Est. Tiba')
@@ -101,6 +119,21 @@ class PurchaseOrdersTable
                         'cancelled' => 'Dibatalkan',
                     ])
                     ->native(false),
+
+                SelectFilter::make('payment_method')
+                    ->label('Metode Pembayaran')
+                    ->options([
+                        'cash' => '💵 Cash',
+                        'transfer' => '🏦 Transfer',
+                        'credit_card' => '💳 Kartu Kredit',
+                    ])
+                    ->native(false),
+
+                SelectFilter::make('credit_card_id')
+                    ->label('Kartu Kredit')
+                    ->relationship('creditCard', 'card_name')
+                    ->searchable()
+                    ->preload(),
 
                 TernaryFilter::make('is_new_sparepart')
                     ->label('Sparepart Baru')

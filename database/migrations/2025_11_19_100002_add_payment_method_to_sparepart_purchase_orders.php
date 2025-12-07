@@ -12,7 +12,9 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('sparepart_purchase_orders', function (Blueprint $table) {
-            $table->string('payment_method')->nullable()->after('supplier_contact')->comment('Metode pembayaran');
+            if (!Schema::hasColumn('sparepart_purchase_orders', 'payment_method')) {
+                $table->string('payment_method')->nullable()->after('supplier_contact')->comment('Metode pembayaran');
+            }
         });
     }
 

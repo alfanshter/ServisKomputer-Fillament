@@ -20,6 +20,7 @@ class SparepartPurchaseOrder extends Model
         'supplier',
         'supplier_contact',
         'payment_method',
+        'credit_card_id',
         'order_date',
         'estimated_arrival',
         'received_date',
@@ -52,6 +53,16 @@ class SparepartPurchaseOrder extends Model
     public function sparepart()
     {
         return $this->belongsTo(Sparepart::class);
+    }
+
+    public function creditCard()
+    {
+        return $this->belongsTo(CreditCard::class);
+    }
+
+    public function creditCardTransaction()
+    {
+        return $this->hasOne(CreditCardTransaction::class, 'sparepart_purchase_order_id');
     }
 
     /**
@@ -172,18 +183,23 @@ class SparepartPurchaseOrder extends Model
                 'notes' => "From PO: {$this->po_number}",
                 'margin_persen' => $this->margin_persen,
                 'harga_jual' => $this->cost_price + ($this->cost_price * $this->margin_persen / 100),
+                'payment_method' => $this->payment_method ?? 'cash',
+                'credit_card_id' => $this->credit_card_id,
             ]);
 
             // 3. Catat transaksi pengeluaran untuk pembelian sparepart
-            Transaction::create([
-                'tanggal' => $this->received_date ?? now(),
-                'tipe' => 'pengeluaran',
-                'kategori' => 'pengeluaran sparepart',
-                'nominal' => $this->total_cost,
-                'deskripsi' => "Pembelian Sparepart: {$this->sparepart_name} ({$this->quantity} unit) - PO: {$this->po_number}",
-                'metode_pembayaran' => $this->payment_method ?? 'BCA',
-                'referensi' => $this->po_number,
-            ]);
+            // HANYA jika bukan pembayaran kartu kredit (untuk CC, pencatatan transaksi dilakukan saat bayar tagihan)
+            if ($this->payment_method !== 'credit_card') {
+                Transaction::create([
+                    'tanggal' => $this->received_date ?? now(),
+                    'tipe' => 'pengeluaran',
+                    'kategori' => 'pengeluaran sparepart',
+                    'nominal' => $this->total_cost,
+                    'deskripsi' => "Pembelian Sparepart: {$this->sparepart_name} ({$this->quantity} unit) - PO: {$this->po_number}",
+                    'metode_pembayaran' => $this->getTransactionPaymentMethod(),
+                    'referensi' => $this->po_number,
+                ]);
+            }
 
             // 4. Update status PO
             $this->status = 'received';
@@ -231,4 +247,23 @@ class SparepartPurchaseOrder extends Model
             default => $this->status,
         };
     }
+
+    /**
+     * Get payment method for Transaction table
+     * Map new enum values to transaction record format
+     */
+    protected function getTransactionPaymentMethod(): string
+    {
+        if (!$this->payment_method) {
+            return 'BCA'; // default fallback
+        }
+
+        return match($this->payment_method) {
+            'cash' => 'cash',
+            'transfer' => 'BCA', // default to BCA for transfer
+            'credit_card' => $this->creditCard ? trim($this->creditCard->card_name) : 'Kartu Kredit',
+            default => $this->payment_method,
+        };
+    }
 }
+

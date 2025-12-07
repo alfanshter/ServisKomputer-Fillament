@@ -2,9 +2,10 @@
 
 namespace App\Filament\Resources\Spareparts\RelationManagers;
 
+use App\Models\CreditCard;
 use Filament\Forms;
-use Filament\Forms\Form;
 use Filament\Resources\RelationManagers\RelationManager;
+use Filament\Schemas\Schema;
 use Filament\Tables;
 use Filament\Tables\Table;
 
@@ -51,6 +52,25 @@ class PurchasesRelationManager extends RelationManager
                             ->label('Total'),
                     ]),
 
+                Tables\Columns\BadgeColumn::make('payment_method')
+                    ->label('Pembayaran')
+                    ->colors([
+                        'success' => 'cash',
+                        'primary' => 'transfer',
+                        'warning' => 'credit_card',
+                    ])
+                    ->formatStateUsing(fn ($state) => match($state) {
+                        'cash' => 'Cash',
+                        'transfer' => 'Transfer',
+                        'credit_card' => 'Kartu Kredit',
+                        default => '-',
+                    }),
+
+                Tables\Columns\TextColumn::make('creditCard.card_name')
+                    ->label('Kartu Kredit')
+                    ->placeholder('-')
+                    ->toggleable(),
+
                 Tables\Columns\TextColumn::make('supplier')
                     ->label('Supplier')
                     ->searchable()
@@ -65,7 +85,7 @@ class PurchasesRelationManager extends RelationManager
             ->defaultSort('purchase_date', 'desc')
             ->filters([])
             ->headerActions([
-                // Bisa tambahkan create action jika perlu
+                // User dapat menambahkan purchase manual via menu utama
             ])
             ->recordActions([])
             ->toolbarActions([]);

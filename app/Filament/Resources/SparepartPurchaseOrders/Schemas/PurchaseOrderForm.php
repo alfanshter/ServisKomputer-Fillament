@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\SparepartPurchaseOrders\Schemas;
 
+use App\Models\CreditCard;
 use App\Models\Sparepart;
 use App\Models\SparepartPurchaseOrder;
 use Filament\Forms\Components\DatePicker;
@@ -190,19 +191,44 @@ class PurchaseOrderForm
                         Select::make('payment_method')
                             ->label('Metode Pembayaran')
                             ->options([
-                                'cash' => 'Cash',
-                                'paylater' => 'Paylater',
-                                'visa' => 'Visa',
-                                'mastercard' => 'Mastercard',
-                                'tokped visa' => 'Tokped Visa',
-                                'gopay later' => 'Gopay Later',
-                                'seabank' => 'Seabank',
-                                'BCA' => 'BCA',
-                                'Mandiri' => 'Mandiri',
+                                'cash' => '💵 Cash',
+                                'transfer' => '🏦 Transfer Bank',
+                                'credit_card' => '💳 Kartu Kredit',
                             ])
-                            ->default('BCA')
+                            ->default('cash')
                             ->required()
-                            ->native(false),
+                            ->native(false)
+                            ->live()
+                            ->afterStateUpdated(function (Set $set, $state) {
+                                // Reset credit card selection if not credit_card
+                                if ($state !== 'credit_card') {
+                                    $set('credit_card_id', null);
+                                }
+                            })
+                            ->helperText(fn ($state) => match($state) {
+                                'cash' => 'Pembayaran tunai',
+                                'transfer' => 'Transfer bank (BCA, Mandiri, dll)',
+                                'credit_card' => 'Pilih kartu kredit yang digunakan',
+                                default => null,
+                            }),
+
+                        Select::make('credit_card_id')
+                            ->label('Pilih Kartu Kredit')
+                            ->options(CreditCard::active()->pluck('card_name', 'id'))
+                            ->searchable()
+                            ->preload()
+                            ->visible(fn (Get $get) => $get('payment_method') === 'credit_card')
+                            ->required(fn (Get $get) => $get('payment_method') === 'credit_card')
+                            ->helperText('Transaksi akan otomatis dicatat di sistem kartu kredit')
+                            ->live()
+                            ->afterStateUpdated(function (Set $set, $state) {
+                                if ($state) {
+                                    $card = CreditCard::find($state);
+                                    if ($card) {
+                                        $set('_credit_card_info', "Limit: Rp " . number_format($card->credit_limit, 0, ',', '.') . " | Tagihan: tgl {$card->billing_day} | Jatuh Tempo: tgl {$card->due_day}");
+                                    }
+                                }
+                            }),
 
                         Textarea::make('notes')
                             ->label('Catatan')
