@@ -50,6 +50,31 @@ class EditPesanan extends EditRecord
             })->toArray();
         }
 
+        // 🔥 Load services data untuk edit
+        if ($record->services && $record->services->count() > 0) {
+            $data['services_edit'] = $record->services->map(function ($service) {
+                return [
+                    'service_id' => $service->id,
+                    'quantity' => $service->pivot->quantity,
+                    'price' => $service->pivot->price,
+                    'subtotal' => $service->pivot->subtotal,
+                ];
+            })->toArray();
+        }
+
+        return $data;
+    }
+
+    /**
+     * Ini dipanggil sebelum data disimpan ke database.
+     * Kita gunakan untuk handle data services_edit dan spareparts_edit
+     */
+    protected function mutateFormDataBeforeSave(array $data): array
+    {
+        // Hapus field virtual yang tidak ada di tabel pesanans
+        unset($data['services_edit']);
+        unset($data['spareparts_edit']);
+
         return $data;
     }
 
@@ -165,8 +190,90 @@ class EditPesanan extends EditRecord
             $record->spareparts()->detach();
         }
 
-        // Refresh untuk ambil data sparepart terbaru
+        // 🔥 HANDLE SERVICE CHANGES
+        // Ambil data service lama sebelum update
+        $oldServices = $record->services()->get()->keyBy('id');
+
+        // Proses service baru dari form
+        if (!empty($this->data['services_edit'])) {
+            $newServiceIds = [];
+
+            foreach ($this->data['services_edit'] as $serviceData) {
+                $serviceId = $serviceData['service_id'];
+                $newQuantity = $serviceData['quantity'];
+                $newPrice = $serviceData['price'];
+                $newSubtotal = $serviceData['subtotal'] ?? ($newQuantity * $newPrice);
+
+                $newServiceIds[] = $serviceId;
+
+                // Cek apakah service sudah ada sebelumnya
+                if ($oldServices->has($serviceId)) {
+                    // Update pivot data
+                    $record->services()->updateExistingPivot($serviceId, [
+                        'quantity' => $newQuantity,
+                        'price' => $newPrice,
+                        'subtotal' => $newSubtotal,
+                    ]);
+                } else {
+                    // Service baru ditambahkan
+                    $record->services()->attach($serviceId, [
+                        'quantity' => $newQuantity,
+                        'price' => $newPrice,
+                        'subtotal' => $newSubtotal,
+                    ]);
+                }
+            }
+
+            // Hapus service yang dihapus dari form
+            foreach ($oldServices as $oldService) {
+                if (!in_array($oldService->id, $newServiceIds)) {
+                    // Detach dari pesanan
+                    $record->services()->detach($oldService->id);
+                }
+            }
+        } else {
+            // Jika semua service dihapus
+            $record->services()->detach();
+        }
+
+        // Refresh untuk ambil data sparepart dan services terbaru
         $record->refresh();
+
+        // Load ulang relasi services dan spareparts dengan data terbaru dari database
+        $record->load(['services', 'spareparts']);
+
+        // 🔥 UPDATE INVOICE ITEMS (snapshot) agar invoice selalu menampilkan data terbaru
+        // Hapus invoice items lama
+        $record->invoiceItems()->delete();
+
+        // Simpan ulang jasa ke invoice items
+        foreach ($record->services as $service) {
+            \App\Models\PesananInvoiceItem::create([
+                'pesanan_id' => $record->id,
+                'item_type' => 'service',
+                'item_name' => $service->name,
+                'item_description' => $service->description,
+                'quantity' => $service->pivot->quantity,
+                'price' => $service->pivot->price,
+                'subtotal' => $service->pivot->subtotal,
+            ]);
+        }
+
+        // Simpan ulang sparepart ke invoice items
+        foreach ($record->spareparts as $sparepart) {
+            \App\Models\PesananInvoiceItem::create([
+                'pesanan_id' => $record->id,
+                'item_type' => 'sparepart',
+                'item_name' => $sparepart->name,
+                'item_description' => $sparepart->description,
+                'quantity' => $sparepart->pivot->quantity,
+                'price' => $sparepart->pivot->price,
+                'subtotal' => $sparepart->pivot->subtotal,
+            ]);
+        }
+
+        // Load ulang untuk perhitungan
+        $record->load(['services', 'spareparts']);
 
         // 🔥 HITUNG ULANG TOTAL COST setelah edit (dengan diskon)
         $serviceCost = $record->services->sum('pivot.subtotal') ?? 0; // Dari master jasa, bukan service_cost lagi

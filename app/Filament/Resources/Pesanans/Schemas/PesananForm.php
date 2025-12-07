@@ -222,6 +222,90 @@ class PesananForm
                     ->defaultItems(0)
                     ->helperText('⚠️ Hati-hati: Mengubah sparepart akan mempengaruhi stok!'),
 
+                // 🔧 Edit Jasa (Services) - hanya visible jika status sudah selesai_analisa atau lebih
+                Repeater::make('services_edit')
+                    ->label('Jasa yang Digunakan')
+                    ->visibleOn('edit')
+                    ->visible(fn($record) => $record && in_array($record->status, [
+                        'selesai_analisa', 'konfirmasi', 'dalam proses',
+                        'menunggu sparepart', 'on hold', 'revisi', 'selesai', 'dibayar'
+                    ]))
+                    ->schema([
+                        Select::make('service_id')
+                            ->label('Jasa')
+                            ->options(function () {
+                                return \App\Models\Service::query()
+                                    ->where('is_active', true)
+                                    ->get()
+                                    ->mapWithKeys(function ($service) {
+                                        return [
+                                            $service->id => "{$service->name} - Rp" . number_format($service->price, 0, ',', '.')
+                                        ];
+                                    });
+                            })
+                            ->searchable()
+                            ->required()
+                            ->reactive()
+                            ->afterStateUpdated(function ($state, callable $set, callable $get) {
+                                if ($state) {
+                                    $service = \App\Models\Service::find($state);
+                                    if ($service) {
+                                        // Hanya set jika belum ada nilai (item baru)
+                                        if (!$get('quantity')) {
+                                            $set('quantity', 1);
+                                        }
+                                        if (!$get('price')) {
+                                            $set('price', $service->price);
+                                        }
+
+                                        // Hitung subtotal
+                                        $quantity = $get('quantity') ?? 1;
+                                        $price = $get('price') ?? $service->price;
+                                        $set('subtotal', $quantity * $price);
+                                    }
+                                }
+                            })
+                            ->columnSpan(2),
+
+                        TextInput::make('quantity')
+                            ->label('Jumlah')
+                            ->numeric()
+                            ->minValue(1)
+                            ->required()
+                            ->reactive()
+                            ->afterStateUpdated(function ($state, callable $get, callable $set) {
+                                $price = $get('price') ?? 0;
+                                $set('subtotal', $state * $price);
+                            })
+                            ->columnSpan(['default' => 2, 'sm' => 1]),
+
+                        TextInput::make('price')
+                            ->label('Harga Satuan')
+                            ->numeric()
+                            ->prefix('Rp')
+                            ->required()
+                            ->reactive()
+                            ->afterStateUpdated(function ($state, callable $get, callable $set) {
+                                $quantity = $get('quantity') ?? 1;
+                                $set('subtotal', $state * $quantity);
+                            })
+                            ->columnSpan(['default' => 3, 'sm' => 2]),
+
+                        TextInput::make('subtotal')
+                            ->label('Subtotal')
+                            ->numeric()
+                            ->prefix('Rp')
+                            ->disabled()
+                            ->dehydrated()
+                            ->columnSpan(['default' => 3, 'sm' => 2]),
+                    ])
+                    ->columns(['default' => 2, 'sm' => 5])
+                    ->columnSpanFull()
+                    ->addActionLabel('Tambah Jasa')
+                    ->collapsible()
+                    ->defaultItems(0)
+                    ->helperText('Tambahkan jasa yang digunakan untuk pesanan ini'),
+
                 Textarea::make('notes')
                     ->label('Catatan')
                     ->nullable(),

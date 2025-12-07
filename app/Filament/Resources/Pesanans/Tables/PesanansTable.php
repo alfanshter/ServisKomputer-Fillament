@@ -187,6 +187,84 @@ class PesanansTable
                     ->outlined()
                     ->dropdownPlacement('bottom-end'),
 
+                Action::make('previous_status')
+                    ->label('Status Sebelumnya')
+                    ->color('warning')
+                    ->icon('heroicon-o-arrow-left')
+                    ->size('md')
+                    ->visible(function ($record) {
+                        // Hanya tampil jika ada history status sebelumnya
+                        $lastHistory = $record->statusHistories()
+                            ->orderBy('created_at', 'desc')
+                            ->first();
+
+                        return $lastHistory && !in_array($record->status, ['batal', 'dibayar']);
+                    })
+                    ->requiresConfirmation()
+                    ->modalHeading(function ($record) {
+                        $lastHistory = $record->statusHistories()
+                            ->orderBy('created_at', 'desc')
+                            ->first();
+
+                        if ($lastHistory) {
+                            return 'Kembali ke status: ' . ucfirst(str_replace('_', ' ', $lastHistory->old_status)) . '?';
+                        }
+                        return 'Kembali ke Status Sebelumnya?';
+                    })
+                    ->modalDescription(function ($record) {
+                        $lastHistory = $record->statusHistories()
+                            ->orderBy('created_at', 'desc')
+                            ->first();
+
+                        if ($lastHistory) {
+                            return "Status akan dikembalikan dari '{$lastHistory->new_status}' ke '{$lastHistory->old_status}'";
+                        }
+                        return 'Apakah Anda yakin ingin kembali ke status sebelumnya?';
+                    })
+                    ->modalSubmitActionLabel('Ya, Kembalikan')
+                    ->form([
+                        Textarea::make('revert_notes')
+                            ->label('Alasan Pengembalian Status')
+                            ->placeholder('Masukkan alasan mengapa status dikembalikan...')
+                            ->rows(3)
+                            ->required(),
+                    ])
+                    ->action(function ($record, $data) {
+                        // Ambil status history terakhir
+                        $lastHistory = $record->statusHistories()
+                            ->orderBy('created_at', 'desc')
+                            ->first();
+
+                        if (!$lastHistory) {
+                            Notification::make()
+                                ->title('Gagal')
+                                ->body('Tidak ada history status sebelumnya.')
+                                ->danger()
+                                ->send();
+                            return;
+                        }
+
+                        $currentStatus = $record->status;
+                        $previousStatus = $lastHistory->old_status;
+
+                        // Update status ke status sebelumnya
+                        $record->update(['status' => $previousStatus]);
+
+                        // Simpan history perubahan status
+                        $record->statusHistories()->create([
+                            'old_status' => $currentStatus,
+                            'new_status' => $previousStatus,
+                            'changed_by' => Auth::id(),
+                            'notes' => 'Status dikembalikan: ' . ($data['revert_notes'] ?? 'Rollback ke status sebelumnya'),
+                        ]);
+
+                        Notification::make()
+                            ->title('Status berhasil dikembalikan')
+                            ->body("Status dikembalikan dari '{$currentStatus}' ke '{$previousStatus}'")
+                            ->success()
+                            ->send();
+                    }),
+
                 Action::make('cancel')
                     ->label('Cancel')
                     ->color('danger')
@@ -305,16 +383,55 @@ class PesanansTable
                                 ->schema([
                                     Select::make('sparepart_id')
                                         ->label('Sparepart')
-                                        ->options(function () {
+                                        ->options(function ($get, $livewire) {
                                             $options = [];
 
-                                            // 1️⃣ Sparepart yang ada stok di gudang
-                                            $sparepartsInStock = \App\Models\Sparepart::query()
-                                                ->where('quantity', '>', 0)
-                                                ->get();
+                                            // Coba ambil record dari livewire mountedTableActionRecord
+                                            $pesanan = null;
+                                            $usedSparepartIds = [];
+
+                                            try {
+                                                // Untuk action pada table, record tersimpan di mountedTableActionRecord
+                                                if (isset($livewire->mountedTableActionRecord)) {
+                                                    $recordId = $livewire->mountedTableActionRecord;
+                                                    $pesanan = \App\Models\Pesanan::with('spareparts')->find($recordId);
+                                                }
+                                            } catch (\Exception $e) {
+                                                // Jika gagal, abaikan saja
+                                            }
+
+                                            if ($pesanan && $pesanan->spareparts) {
+                                                $usedSparepartIds = $pesanan->spareparts->pluck('id')->toArray();
+                                            }
+
+                                            // 1️⃣ Sparepart yang ada stok di gudang ATAU sedang digunakan di pesanan ini
+                                            $sparepartsQuery = \App\Models\Sparepart::query();
+
+                                            if (!empty($usedSparepartIds)) {
+                                                // Include sparepart yang sedang digunakan
+                                                $sparepartsQuery->where(function ($query) use ($usedSparepartIds) {
+                                                    $query->where('quantity', '>', 0)
+                                                        ->orWhereIn('id', $usedSparepartIds);
+                                                });
+                                            } else {
+                                                // Hanya yang ada stok
+                                                $sparepartsQuery->where('quantity', '>', 0);
+                                            }
+
+                                            $sparepartsInStock = $sparepartsQuery->get();
 
                                             foreach ($sparepartsInStock as $sp) {
-                                                $options["stock_{$sp->id}"] = "📦 {$sp->name} - Stok: {$sp->quantity} - Rp" . number_format($sp->price, 0, ',', '.');
+                                                // Hitung stok efektif (stok saat ini + yang sedang dipakai di pesanan ini)
+                                                $currentStock = $sp->quantity;
+                                                $usedInThisOrder = 0;
+
+                                                if (in_array($sp->id, $usedSparepartIds) && $pesanan) {
+                                                    $usedInThisOrder = $pesanan->spareparts->where('id', $sp->id)->first()->pivot->quantity ?? 0;
+                                                }
+
+                                                $effectiveStock = $currentStock + $usedInThisOrder;
+
+                                                $options["stock_{$sp->id}"] = "📦 {$sp->name} - Stok: {$effectiveStock} - Rp" . number_format($sp->price, 0, ',', '.');
                                             }
 
                                             // 2️⃣ Sparepart dari Purchase Order
@@ -352,6 +469,41 @@ class PesanansTable
                                             return $options;
                                         })
                                         ->searchable()
+                                        ->getOptionLabelUsing(function ($value) {
+                                            // Fungsi untuk menampilkan label yang benar saat option sudah dipilih
+                                            if (strpos($value, 'stock_') === 0) {
+                                                $sparepartId = str_replace('stock_', '', $value);
+                                                $sparepart = \App\Models\Sparepart::find($sparepartId);
+                                                if ($sparepart) {
+                                                    return "📦 {$sparepart->name} - Stok: {$sparepart->quantity} - Rp" . number_format($sparepart->price, 0, ',', '.');
+                                                }
+                                            } elseif (strpos($value, 'po_') === 0) {
+                                                $poId = str_replace('po_', '', $value);
+                                                $po = \App\Models\SparepartPurchaseOrder::with('sparepart')->find($poId);
+                                                if ($po) {
+                                                    $name = $po->sparepart?->name ?? $po->sparepart_name ?? 'Unknown';
+                                                    $statusLabel = match($po->status) {
+                                                        'rekomendasi' => '📋 Rekomendasi',
+                                                        'pending' => '⏳ Pending',
+                                                        'shipped' => '🚚 Dikirim',
+                                                        default => $po->status,
+                                                    };
+
+                                                    // Hitung harga
+                                                    if ($po->sparepart?->price) {
+                                                        $price = $po->sparepart->price;
+                                                    } else {
+                                                        $costPrice = $po->cost_price ?? 0;
+                                                        $marginPersen = $po->margin_persen ?? 0;
+                                                        $price = $costPrice + ($costPrice * $marginPersen / 100);
+                                                    }
+
+                                                    return "🛒 PO: {$name} - {$statusLabel} - Qty: {$po->quantity} - Rp" . number_format($price, 0, ',', '.');
+                                                }
+                                            }
+
+                                            return $value; // Fallback
+                                        })
                                         ->required()
                                         ->reactive()
                                         ->afterStateUpdated(function ($state, callable $set, callable $get) {
@@ -532,77 +684,6 @@ class PesanansTable
                                 ->label('Template Chat WhatsApp')
                                 ->rows(22)
                                 ->helperText('Template sudah otomatis terisi. Anda bisa mengedit sebelum mengirim.')
-                                ->default(function ($record) {
-                                    $nama = $record->user->name ?? 'Pelanggan';
-                                    $device = $record->device_type ?? 'Perangkat';
-                                    $analisa = $record->analisa ?? 'Hasil analisa sedang diproses';
-                                    $solusi = $record->solution ?? 'Solusi sedang diproses';
-
-                                    // Build message
-                                    $message = "Halo Kak {$nama} 👋\n\n";
-                                    $message .= "Tim teknisi kami sudah melakukan pengecekan pada *{$device}* Kakak.\n\n";
-                                    $message .= "📋 *HASIL ANALISA:*\n";
-                                    $message .= "{$analisa}\n\n";
-                                    $message .= "🔧 *SOLUSI:*\n";
-                                    $message .= "{$solusi}\n\n";
-                                    $message .= "💰 *RINCIAN BIAYA:*\n";
-
-                                    // Jasa Service dari master data
-                                    $totalJasaCost = 0;
-                                    if ($record->services && $record->services->count() > 0) {
-                                        foreach ($record->services as $service) {
-                                            $qty = $service->pivot->quantity;
-                                            $price = $service->pivot->price;
-                                            $subtotal = $service->pivot->subtotal;
-                                            $totalJasaCost += $subtotal;
-
-                                            $priceFormat = 'Rp' . number_format($price, 0, ',', '.');
-                                            $subtotalFormat = 'Rp' . number_format($subtotal, 0, ',', '.');
-
-                                            $message .= "• {$service->name} ({$qty}x {$priceFormat}): {$subtotalFormat}\n";
-                                        }
-                                    }
-
-                                    // Sparepart yang digunakan
-                                    $totalSparepart = 0;
-                                    if ($record->spareparts && $record->spareparts->count() > 0) {
-                                        foreach ($record->spareparts as $sparepart) {
-                                            $qty = $sparepart->pivot->quantity;
-                                            $price = $sparepart->pivot->price;
-                                            $subtotal = $sparepart->pivot->subtotal;
-                                            $totalSparepart += $subtotal;
-
-                                            $priceFormat = 'Rp' . number_format($price, 0, ',', '.');
-                                            $subtotalFormat = 'Rp' . number_format($subtotal, 0, ',', '.');
-
-                                            $message .= "• {$sparepart->name} ({$qty}x {$priceFormat}): {$subtotalFormat}\n";
-                                        }
-                                    }
-
-                                    // Subtotal
-                                    $subtotalAll = $totalJasaCost + $totalSparepart;
-                                    $subtotalAllFormat = 'Rp' . number_format($subtotalAll, 0, ',', '.');
-                                    $message .= "\n_Subtotal: {$subtotalAllFormat}_\n";
-
-                                    // Diskon (jika ada)
-                                    $diskon = $record->discount ?? 0;
-                                    if ($diskon > 0) {
-                                        $diskonFormat = 'Rp' . number_format($diskon, 0, ',', '.');
-                                        $message .= "_Diskon: -{$diskonFormat}_\n";
-                                    }
-
-                                    // Total keseluruhan
-                                    $totalBiaya = $record->total_cost ?? ($subtotalAll - $diskon);
-                                    $totalBiayaFormat = 'Rp' . number_format($totalBiaya, 0, ',', '.');
-
-                                    $message .= "\n*TOTAL BIAYA: {$totalBiayaFormat}*\n\n";
-                                    $message .= "Apabila Kakak setuju, kami akan segera melanjutkan proses perbaikan.\n\n";
-                                    $message .= "Mohon konfirmasinya ya Kak 🙏\n\n";
-                                    $message .= "Terima kasih,\n";
-                                    $message .= "*PWS Computer Service Center*";
-
-                                    return $message;
-                                })
                                 ->columnSpanFull(),
 
 
@@ -641,28 +722,8 @@ class PesanansTable
                             Textarea::make('template')
                                 ->label('Template Chat')
                                 ->rows(10)
-                                ->default(function ($record) {
-                                    $nama = $record->user->name ?? 'Pelanggan';
-
-                                    return <<<TEXT
-                        Halo Kak {$nama} 👋
-
-                        Terima kasih telah mempercayakan servis perangkat Kakak di *PWS Computer Service Center*.
-
-                        Pekerjaan perbaikan sudah selesai dan perangkat telah diserahkan kembali kepada Kakak ✅
-
-                        Semoga perangkatnya dapat kembali digunakan dengan baik dan lancar.
-                        Jika di kemudian hari ada kendala atau membutuhkan bantuan lainnya, silakan hubungi kami kapan saja. Kami siap membantu 😊
-
-                        Terima kasih atas kepercayaannya 🙏
-                        Sampai jumpa di layanan servis berikutnya!
-
-                        Salam,
-                        *PWS Computer Service Center*
-                        TEXT;
-                                }),
-
-
+                                ->helperText('Template sudah otomatis terisi. Anda bisa mengedit sebelum mengirim.')
+                                ->columnSpanFull(),
 
                             Actions::make([
                                 Action::make('send_whatsapp')
@@ -764,73 +825,6 @@ class PesanansTable
                                 ->label('Template Chat WhatsApp')
                                 ->rows(20)
                                 ->helperText('Template sudah otomatis terisi. Anda bisa mengedit sebelum mengirim.')
-                                ->default(function ($record) {
-                                    $nama = $record->user->name ?? 'Pelanggan';
-                                    $device = $record->device_type ?? 'Perangkat';
-
-                                    $message = "Halo Kak {$nama} 👋\n\n";
-                                    $message .= "Kabar baik! 🎉\n\n";
-                                    $message .= "*{$device}* Kakak sudah *selesai diservis* dan siap digunakan kembali ✅\n\n";
-                                    $message .= "💰 *RINCIAN BIAYA:*\n";
-
-                                    // Jasa Service dari master data
-                                    $totalJasaCost = 0;
-                                    if ($record->services && $record->services->count() > 0) {
-                                        foreach ($record->services as $service) {
-                                            $qty = $service->pivot->quantity;
-                                            $price = $service->pivot->price;
-                                            $subtotal = $service->pivot->subtotal;
-                                            $totalJasaCost += $subtotal;
-
-                                            $priceFormat = 'Rp' . number_format($price, 0, ',', '.');
-                                            $subtotalFormat = 'Rp' . number_format($subtotal, 0, ',', '.');
-
-                                            $message .= "• {$service->name} ({$qty}x {$priceFormat}): {$subtotalFormat}\n";
-                                        }
-                                    }
-
-                                    // Sparepart yang digunakan
-                                    $totalSparepart = 0;
-                                    if ($record->spareparts && $record->spareparts->count() > 0) {
-                                        foreach ($record->spareparts as $sparepart) {
-                                            $qty = $sparepart->pivot->quantity;
-                                            $price = $sparepart->pivot->price;
-                                            $subtotal = $sparepart->pivot->subtotal;
-                                            $totalSparepart += $subtotal;
-
-                                            $priceFormat = 'Rp' . number_format($price, 0, ',', '.');
-                                            $subtotalFormat = 'Rp' . number_format($subtotal, 0, ',', '.');
-
-                                            $message .= "• {$sparepart->name} ({$qty}x {$priceFormat}): {$subtotalFormat}\n";
-                                        }
-                                    }
-
-                                    // Subtotal
-                                    $subtotalAll = $totalJasaCost + $totalSparepart;
-                                    $subtotalAllFormat = 'Rp' . number_format($subtotalAll, 0, ',', '.');
-                                    $message .= "\n_Subtotal: {$subtotalAllFormat}_\n";
-
-                                    // Diskon (jika ada)
-                                    $diskon = $record->discount ?? 0;
-                                    if ($diskon > 0) {
-                                        $diskonFormat = 'Rp' . number_format($diskon, 0, ',', '.');
-                                        $message .= "_Diskon: -{$diskonFormat}_\n";
-                                    }
-
-                                    // Total keseluruhan
-                                    $totalBiaya = $record->total_cost ?? ($subtotalAll - $diskon);
-                                    $totalBiayaFormat = 'Rp' . number_format($totalBiaya, 0, ',', '.');
-
-                                    $message .= "\n*TOTAL BIAYA: {$totalBiayaFormat}*\n\n";
-                                    $message .= "Kakak bisa:\n";
-                                    $message .= "📍 Ambil langsung di *PWS Computer Service Center*, atau\n";
-                                    $message .= "🚚 Kami bantu *antar ke alamat Kakak* (biaya ongkir sesuai jarak)\n\n";
-                                    $message .= "Mohon konfirmasinya ya Kak, apakah ingin *diambil sendiri* atau *dikirim*? 🙏\n\n";
-                                    $message .= "Terima kasih atas kepercayaannya 💙\n";
-                                    $message .= "*PWS Computer Service Center*";
-
-                                    return $message;
-                                })
                                 ->columnSpanFull(),
 
                             Actions::make([
@@ -847,6 +841,243 @@ class PesanansTable
                             ])
                         ],
                         default => [],
+                    })
+                    ->fillForm(function ($record) {
+                        // Pre-fill form dengan data yang sudah ada
+                        $formData = [];
+
+                        if ($record->status === 'analisa') {
+                            // Isi dengan data yang sudah pernah disimpan sebelumnya
+                            $formData['analisa'] = $record->analisa;
+                            $formData['solution'] = $record->solution;
+                            $formData['discount'] = $record->discount;
+
+                            // Load spareparts yang sudah ada
+                            if ($record->spareparts && $record->spareparts->count() > 0) {
+                                $formData['spareparts'] = $record->spareparts->map(function ($sparepart) {
+                                    // Cek apakah sparepart masih ada dan valid
+                                    $sparepartExists = \App\Models\Sparepart::find($sparepart->id);
+
+                                    if ($sparepartExists) {
+                                        return [
+                                            'sparepart_id' => "stock_{$sparepart->id}",
+                                            'quantity' => $sparepart->pivot->quantity,
+                                            'price' => $sparepart->pivot->price,
+                                            'subtotal' => $sparepart->pivot->subtotal,
+                                            'source_type' => 'stock',
+                                            'source_id' => $sparepart->id,
+                                            'po_id' => null, // Dari stock, bukan PO
+                                            'max_quantity' => $sparepartExists->quantity + $sparepart->pivot->quantity, // stok sekarang + yang sedang dipakai
+                                        ];
+                                    }
+                                    return null;
+                                })->filter()->values()->toArray(); // Filter null values
+                            }
+
+                            // Load services yang sudah ada
+                            if ($record->services && $record->services->count() > 0) {
+                                $formData['services'] = $record->services->map(function ($service) {
+                                    // Cek apakah service masih aktif
+                                    $serviceExists = \App\Models\Service::where('id', $service->id)
+                                        ->where('is_active', true)
+                                        ->first();
+
+                                    if ($serviceExists) {
+                                        return [
+                                            'service_id' => $service->id,
+                                            'quantity' => $service->pivot->quantity,
+                                            'price' => $service->pivot->price,
+                                            'subtotal' => $service->pivot->subtotal,
+                                        ];
+                                    }
+                                    return null;
+                                })->filter()->values()->toArray(); // Filter null values
+                            }
+
+                            // Load foto progress yang sudah ada
+                            $progressPhotos = $record->photos()
+                                ->where('type', 'progress')
+                                ->pluck('path')
+                                ->toArray();
+
+                            if (!empty($progressPhotos)) {
+                                $formData['progress_photos'] = $progressPhotos;
+                            }
+                        }
+
+                        // 🔥 Fill template WhatsApp untuk status selesai_analisa
+                        if ($record->status === 'selesai_analisa') {
+                            // Reload record dengan relasi untuk memastikan data lengkap
+                            $record->load(['user', 'services', 'spareparts']);
+
+                            $nama = $record->user->name ?? 'Pelanggan';
+                            $device = $record->device_type ?? 'Perangkat';
+                            $analisa = $record->analisa ?? 'Hasil analisa sedang diproses';
+                            $solusi = $record->solution ?? 'Solusi sedang diproses';
+
+                            // Build message
+                            $message = "Halo Kak {$nama} 👋\n\n";
+                            $message .= "Tim teknisi kami sudah melakukan pengecekan pada *{$device}* Kakak.\n\n";
+                            $message .= "📋 *HASIL ANALISA:*\n";
+                            $message .= "{$analisa}\n\n";
+                            $message .= "🔧 *SOLUSI:*\n";
+                            $message .= "{$solusi}\n\n";
+                            $message .= "💰 *RINCIAN BIAYA:*\n";
+
+                            // Jasa Service dari master data
+                            $totalJasaCost = 0;
+                            if ($record->services && $record->services->count() > 0) {
+                                foreach ($record->services as $service) {
+                                    $qty = $service->pivot->quantity;
+                                    $price = $service->pivot->price;
+                                    $subtotal = $service->pivot->subtotal;
+                                    $totalJasaCost += $subtotal;
+
+                                    $priceFormat = 'Rp' . number_format($price, 0, ',', '.');
+                                    $subtotalFormat = 'Rp' . number_format($subtotal, 0, ',', '.');
+
+                                    $message .= "• {$service->name} ({$qty}x {$priceFormat}): {$subtotalFormat}\n";
+                                }
+                            }
+
+                            // Sparepart yang digunakan
+                            $totalSparepart = 0;
+                            if ($record->spareparts && $record->spareparts->count() > 0) {
+                                foreach ($record->spareparts as $sparepart) {
+                                    $qty = $sparepart->pivot->quantity;
+                                    $price = $sparepart->pivot->price;
+                                    $subtotal = $sparepart->pivot->subtotal;
+                                    $totalSparepart += $subtotal;
+
+                                    $priceFormat = 'Rp' . number_format($price, 0, ',', '.');
+                                    $subtotalFormat = 'Rp' . number_format($subtotal, 0, ',', '.');
+
+                                    $message .= "• {$sparepart->name} ({$qty}x {$priceFormat}): {$subtotalFormat}\n";
+                                }
+                            }
+
+                            // Subtotal
+                            $subtotalAll = $totalJasaCost + $totalSparepart;
+                            $subtotalAllFormat = 'Rp' . number_format($subtotalAll, 0, ',', '.');
+                            $message .= "\n_Subtotal: {$subtotalAllFormat}_\n";
+
+                            // Diskon (jika ada)
+                            $diskon = $record->discount ?? 0;
+                            if ($diskon > 0) {
+                                $diskonFormat = 'Rp' . number_format($diskon, 0, ',', '.');
+                                $message .= "_Diskon: -{$diskonFormat}_\n";
+                            }
+
+                            // Total keseluruhan
+                            $totalBiaya = $record->total_cost ?? ($subtotalAll - $diskon);
+                            $totalBiayaFormat = 'Rp' . number_format($totalBiaya, 0, ',', '.');
+
+                            $message .= "\n*TOTAL BIAYA: {$totalBiayaFormat}*\n\n";
+                            $message .= "Apabila Kakak setuju, kami akan segera melanjutkan proses perbaikan.\n\n";
+                            $message .= "Mohon konfirmasinya ya Kak 🙏\n\n";
+                            $message .= "Terima kasih,\n";
+                            $message .= "*PWS Computer Service Center*";
+
+                            $formData['template'] = $message;
+                        }
+
+                        // 🔥 Fill template WhatsApp untuk status dalam proses
+                        if ($record->status === 'dalam proses') {
+                            // Reload record dengan relasi untuk memastikan data lengkap
+                            $record->load(['user', 'services', 'spareparts']);
+
+                            $nama = $record->user->name ?? 'Pelanggan';
+                            $device = $record->device_type ?? 'Perangkat';
+
+                            $message = "Halo Kak {$nama} 👋\n\n";
+                            $message .= "Kabar baik! 🎉\n\n";
+                            $message .= "*{$device}* Kakak sudah *selesai diservis* dan siap digunakan kembali ✅\n\n";
+                            $message .= "💰 *RINCIAN BIAYA:*\n";
+
+                            // Jasa Service dari master data
+                            $totalJasaCost = 0;
+                            if ($record->services && $record->services->count() > 0) {
+                                foreach ($record->services as $service) {
+                                    $qty = $service->pivot->quantity;
+                                    $price = $service->pivot->price;
+                                    $subtotal = $service->pivot->subtotal;
+                                    $totalJasaCost += $subtotal;
+
+                                    $priceFormat = 'Rp' . number_format($price, 0, ',', '.');
+                                    $subtotalFormat = 'Rp' . number_format($subtotal, 0, ',', '.');
+
+                                    $message .= "• {$service->name} ({$qty}x {$priceFormat}): {$subtotalFormat}\n";
+                                }
+                            }
+
+                            // Sparepart yang digunakan
+                            $totalSparepart = 0;
+                            if ($record->spareparts && $record->spareparts->count() > 0) {
+                                foreach ($record->spareparts as $sparepart) {
+                                    $qty = $sparepart->pivot->quantity;
+                                    $price = $sparepart->pivot->price;
+                                    $subtotal = $sparepart->pivot->subtotal;
+                                    $totalSparepart += $subtotal;
+
+                                    $priceFormat = 'Rp' . number_format($price, 0, ',', '.');
+                                    $subtotalFormat = 'Rp' . number_format($subtotal, 0, ',', '.');
+
+                                    $message .= "• {$sparepart->name} ({$qty}x {$priceFormat}): {$subtotalFormat}\n";
+                                }
+                            }
+
+                            // Subtotal
+                            $subtotalAll = $totalJasaCost + $totalSparepart;
+                            $subtotalAllFormat = 'Rp' . number_format($subtotalAll, 0, ',', '.');
+                            $message .= "\n_Subtotal: {$subtotalAllFormat}_\n";
+
+                            // Diskon (jika ada)
+                            $diskon = $record->discount ?? 0;
+                            if ($diskon > 0) {
+                                $diskonFormat = 'Rp' . number_format($diskon, 0, ',', '.');
+                                $message .= "_Diskon: -{$diskonFormat}_\n";
+                            }
+
+                            // Total keseluruhan
+                            $totalBiaya = $record->total_cost ?? ($subtotalAll - $diskon);
+                            $totalBiayaFormat = 'Rp' . number_format($totalBiaya, 0, ',', '.');
+
+                            $message .= "\n*TOTAL BIAYA: {$totalBiayaFormat}*\n\n";
+                            $message .= "Kakak bisa:\n";
+                            $message .= "📍 Ambil langsung di *PWS Computer Service Center*, atau\n";
+                            $message .= "🚚 Kami bantu *antar ke alamat Kakak* (biaya ongkir sesuai jarak)\n\n";
+                            $message .= "Mohon konfirmasinya ya Kak, apakah ingin *diambil sendiri* atau *dikirim*? 🙏\n\n";
+                            $message .= "Terima kasih atas kepercayaannya 💙\n";
+                            $message .= "*PWS Computer Service Center*";
+
+                            $formData['template'] = $message;
+                        }
+
+                        // 🔥 Fill template WhatsApp untuk status selesai (tandai dibayar)
+                        if ($record->status === 'selesai') {
+                            // Reload record dengan relasi untuk memastikan data lengkap
+                            $record->load(['user']);
+
+                            $nama = $record->user->name ?? 'Pelanggan';
+
+                            $message = "Halo Kak {$nama} 👋\n\n";
+                            $message .= "Terima kasih telah mempercayakan servis perangkat Kakak di *PWS Computer Service Center*.\n\n";
+                            $message .= "Pekerjaan perbaikan sudah selesai dan perangkat telah diserahkan kembali kepada Kakak ✅\n\n";
+                            $message .= "Semoga perangkatnya dapat kembali digunakan dengan baik dan lancar.\n";
+                            $message .= "Jika di kemudian hari ada kendala atau membutuhkan bantuan lainnya, silakan hubungi kami kapan saja. Kami siap membantu 😊\n\n";
+                            $message .= "🌟 *Mohon bantuan Kakak untuk memberikan ulasan di Google Maps* 🌟\n";
+                            $message .= "Ulasan Kakak sangat berarti untuk kami dan membantu customer lain menemukan layanan kami.\n\n";
+                            $message .= "Link Google Maps:\n";
+                            $message .= "https://maps.app.goo.gl/HuDygGZGEVbMaGVB7\n\n";
+                            $message .= "Terima kasih atas kepercayaannya 🙏\n";
+                            $message .= "Sampai jumpa di layanan servis berikutnya!\n\n";
+                            $message .= "Salam,\n";
+                            $message .= "*PWS Computer Service Center*";
+
+                            $formData['template'] = $message;
+                        }
+
+                        return $formData;
                     })
                     ->action(function ($record, $data, $action) {
 
@@ -947,15 +1178,25 @@ class PesanansTable
                                 'total_cost' => $totalCost,
                             ]);
 
-                            // Simpan foto ke tabel PesananOrderPhoto
-                            foreach ($data['progress_photos'] as $path) {
-                                $record->photos()->create([
-                                    'type' => 'progress',
-                                    'path' => $path,
-                                ]);
+                            // 🔥 HANDLE FOTO PROGRESS
+                            // Hapus foto progress lama
+                            $record->photos()->where('type', 'progress')->delete();
+
+                            // Simpan foto progress baru
+                            if (!empty($data['progress_photos'])) {
+                                foreach ($data['progress_photos'] as $path) {
+                                    $record->photos()->create([
+                                        'type' => 'progress',
+                                        'path' => $path,
+                                    ]);
+                                }
                             }
 
-                            // 🔥 Simpan jasa service
+                            // 🔥 HANDLE JASA SERVICE
+                            // Hapus jasa lama
+                            $record->services()->detach();
+
+                            // Simpan jasa service baru
                             if (!empty($data['services'])) {
                                 foreach ($data['services'] as $serviceData) {
                                     $subtotal = $serviceData['subtotal'] ?? ($serviceData['quantity'] * $serviceData['price']);
@@ -969,7 +1210,20 @@ class PesanansTable
                                 }
                             }
 
-                            // 🔥 Simpan sparepart jika ada
+                            // 🔥 HANDLE SPAREPART
+                            // Ambil sparepart lama untuk kembalikan stok
+                            $oldSpareparts = $record->spareparts()->get();
+
+                            // Kembalikan stok sparepart lama
+                            foreach ($oldSpareparts as $oldSparepart) {
+                                $oldQuantity = $oldSparepart->pivot->quantity;
+                                $oldSparepart->increment('quantity', $oldQuantity);
+                            }
+
+                            // Hapus relasi sparepart lama
+                            $record->spareparts()->detach();
+
+                            // Simpan sparepart baru
                             if (!empty($data['spareparts'])) {
                                 foreach ($data['spareparts'] as $sparepartData) {
                                     $sourceType = $sparepartData['source_type'] ?? 'stock';

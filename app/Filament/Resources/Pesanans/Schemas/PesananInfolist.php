@@ -30,11 +30,6 @@ class PesananInfolist
                 TextEntry::make('end_date')
                     ->dateTime()
                     ->placeholder('-'),
-                TextEntry::make('service_cost')
-                    ->numeric()
-                    ->placeholder('-')
-                    ->money('IDR', true)
-                    ->label('Biaya Jasa Servis'),
 
                 TextEntry::make('total_sparepart_cost')
                     ->label('Total Biaya Sparepart')
@@ -43,6 +38,26 @@ class PesananInfolist
                     ->weight('bold')
                     ->color('warning')
                     ->visible(fn($record) => $record->spareparts->count() > 0),
+
+                TextEntry::make('subtotal')
+                    ->label('Subtotal (Jasa + Sparepart)')
+                    ->getStateUsing(function ($record) {
+                        $serviceCost = $record->services->sum('pivot.subtotal') ?? 0;
+                        $sparepartCost = $record->spareparts->sum('pivot.subtotal') ?? 0;
+                        return $serviceCost + $sparepartCost;
+                    })
+                    ->money('IDR', true)
+                    ->weight('bold')
+                    ->color('info'),
+
+                TextEntry::make('discount')
+                    ->label('Diskon')
+                    ->money('IDR', true)
+                    ->placeholder('Tidak ada diskon')
+                    ->weight('bold')
+                    ->color('danger')
+                    ->visible(fn($record) => $record->discount > 0)
+                    ->formatStateUsing(fn($state) => '- ' . number_format($state, 0, ',', '.')),
 
                 TextEntry::make('total_cost')
                     ->label('Total Keseluruhan')
