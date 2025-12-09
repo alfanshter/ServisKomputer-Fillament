@@ -31,25 +31,25 @@ class TeamResource extends Resource
 
     protected static ?int $navigationSort = 2;
 
-    // 🔒 Hanya Supervisor yang bisa tambah/edit/delete tim internal
+    // 🔒 Hanya Supervisor dan Admin yang bisa tambah/edit/delete tim internal
     public static function canCreate(): bool
     {
-        return Auth::user()?->role === 'supervisor';
+        return in_array(Auth::user()?->role, ['admin', 'supervisor']);
     }
 
     public static function canEdit($record): bool
     {
-        return Auth::user()?->role === 'supervisor';
+        return in_array(Auth::user()?->role, ['admin', 'supervisor']);
     }
 
     public static function canDelete($record): bool
     {
-        return Auth::user()?->role === 'supervisor';
+        return in_array(Auth::user()?->role, ['admin', 'supervisor']);
     }
 
     public static function canDeleteAny(): bool
     {
-        return Auth::user()?->role === 'supervisor';
+        return in_array(Auth::user()?->role, ['admin', 'supervisor']);
     }
 
     // Filter hanya tim internal (bukan customer)
